@@ -1,4 +1,4 @@
-# ARC-Sight (OPEN SOURCE)
+# ARC-Sight
 
 ![Version](https://img.shields.io/badge/version-1.0.6-blue)
 ![Platform](https://img.shields.io/badge/platform-Windows-lightgrey)
