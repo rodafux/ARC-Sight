@@ -3,10 +3,12 @@
 ![Version](https://img.shields.io/badge/version-1.0.6-blue)
 ![Platform](https://img.shields.io/badge/platform-Windows-lightgrey)
 
-<img width="1919" height="1059" alt="Capture d&#39;écran 2025-12-05 074427" src="https://github.com/user-attachments/assets/851f53de-b95e-4052-b748-205dd45a3770" />
-
-**ARC-Sight** is a lightweight, non-intrusive external overlay designed for *ARC Raiders*. It tracks in-game events in real-time, helping you plan your raids without leaving your game screen.
-
+<img width="1919" height="1059" alt="Capture d&#39;écran 2025-12-05 074427" src="https://github.com/user-attachments/assets/851f53de-b95e-4052-b748-205dd45a3770" /><br><br>
+<img src="https://github.com/user-attachments/assets/21584b10-de02-409c-aef4-5b550c8f59f4" width="205" align="left" alt="logo" /><br><br><br>
+ 
+ 
+ 
+**ARC-Sight** is a lightweight, non-intrusive external overlay designed for *ARC Raiders*. It tracks in-game events in real-time, helping you plan your raids without leaving your game screen.<br><br><br><br><br><br><br>
 ## 🚀 Key Features
 
 * **Live Event Tracking:** Accurate countdowns for all map events synced with the Metaforge API.
@@ -44,9 +46,11 @@ You can access settings by clicking the **Gear Icon** on the overlay or by right
 
 ---
 
-# 🇫🇷 Version Française
+# 🇫🇷 Version Française<br><br><br>
 
-**ARC-Sight** est un overlay léger et discret conçu pour *ARC Raiders*. Il vous permet de suivre les événements du jeu en temps réel, sans jamais quitter votre écran de jeu des yeux.
+<img src="https://github.com/user-attachments/assets/21584b10-de02-409c-aef4-5b550c8f59f4" width="205" align="left" alt="logo" /><br><br><br>
+
+**ARC-Sight** est un overlay léger et discret conçu pour *ARC Raiders*. Il vous permet de suivre les événements du jeu en temps réel, sans jamais quitter votre écran de jeu des yeux.<br><br><br><br><br><br><br>
 
 ## 🚀 Fonctionnalités principales
 
