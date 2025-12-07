@@ -1,9 +1,9 @@
 # ARC-Sight (OPEN SOURCE)
 
-<img width="1919" height="1059" alt="Capture d&#39;écran 2025-12-05 074427" src="https://github.com/user-attachments/assets/851f53de-b95e-4052-b748-205dd45a3770" />
-
 ![Version](https://img.shields.io/badge/version-1.0.5-blue)
 ![Platform](https://img.shields.io/badge/platform-Windows-lightgrey)
+
+<img width="1919" height="1059" alt="Capture d&#39;écran 2025-12-05 074427" src="https://github.com/user-attachments/assets/851f53de-b95e-4052-b748-205dd45a3770" />
 
 **ARC-Sight** is a lightweight, non-intrusive external overlay designed for *ARC Raiders*. It tracks in-game events in real-time, helping you plan your raids without leaving your game screen.
 
