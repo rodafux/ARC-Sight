@@ -49,6 +49,9 @@ REFRESH_UI_INTERVAL_MS = 500
 
 MASTER_SERVER_GITHUB_URL = "https://arc-sight-stats-viewer.onrender.com/ping"
 
+GITHUB_RELEASE_API = "https://api.github.com/repos/rodafux/ARC-Sight/releases/latest"
+GITHUB_RELEASE_PAGE = "https://github.com/rodafux/ARC-Sight/releases"
+
 HOTKEY = DEFAULT_CONFIG['hotkey']
 NOTIFY_SECONDS = DEFAULT_CONFIG['notify_minutes'] * 60
 SOUND_ENABLED = DEFAULT_CONFIG['sound_enabled'] == 'True'
@@ -167,6 +170,28 @@ class ApiWorker(QThread):
             print(f"❌ Erreur Events : {e}")
             self.error_occurred.emit(str(e))
 
+class GitHubVersionWorker(QThread):
+    version_checked = pyqtSignal(str, str) # version_tag, release_url
+    
+    def run(self):
+        try:
+            headers = {'User-Agent': APP_NAME}
+            response = requests.get(GITHUB_RELEASE_API, headers=headers, timeout=10)
+            response.raise_for_status()
+            data = response.json()
+            
+            latest_tag = data.get('tag_name', '').lstrip('vV') 
+            release_url = data.get('html_url', GITHUB_RELEASE_PAGE)
+            
+            if latest_tag:
+                self.version_checked.emit(latest_tag, release_url)
+            else:
+                self.version_checked.emit("", "")
+                
+        except Exception as e:
+            print(f"❌ Erreur GitHub API: {e}")
+            self.version_checked.emit("", "")
+
 class HeartbeatWorker(QThread):
     def run(self):
         target_url = "https://arc-sight-stats-viewer.onrender.com/ping"
@@ -256,7 +281,7 @@ class ToastNotification(QWidget):
         self.anim.start()
 
 class SettingsWindow(QDialog):
-    def __init__(self, main_window, current_hotkey, current_notify_min):
+    def __init__(self, main_window, current_hotkey, current_notify_min, current_app_version):
         super().__init__(main_window)
         self.setWindowTitle(get_translation('header', 'SETTINGS'))
         
@@ -270,6 +295,7 @@ class SettingsWindow(QDialog):
         self.temp_hotkey_string = current_hotkey
         self.available_languages = self.find_available_languages()
         self.capturing_key = False 
+        self.current_app_version = current_app_version # Utilisé pour l'affichage
 
         self.init_ui(current_notify_min)
 
@@ -337,7 +363,13 @@ class SettingsWindow(QDialog):
         
         text_layout.addWidget(QLabel(f"<h3>{get_translation('about_header', 'SETTINGS')}</h3>"))
         
-        lbl_ver = QLabel("Version: <b>1.0.5</b>")
+        # UTILISATION DE LA VERSION CENTRALISÉE
+        try:
+            version_txt = get_translation('current_version', 'SETTINGS').format(version=self.current_app_version)
+        except: 
+            version_txt = f"Version: <b>{self.current_app_version}</b>"
+            
+        lbl_ver = QLabel(version_txt)
         lbl_ver.setStyleSheet("color: #888;")
         text_layout.addWidget(lbl_ver)
         
@@ -666,7 +698,13 @@ class MainWindow(QMainWindow):
         self.game_detected_once = False
         self.audio_player = AudioPlayer(self)
         self.settings_button = None
+        self.update_button = None # Nouveau bouton de mise à jour
         self.hotkey_listener = None 
+        
+        # PROPRIÉTÉS POUR LA VÉRIFICATION DE VERSION
+        self.current_version = "1.0.6"
+        self.latest_version = None
+        self.latest_release_url = GITHUB_RELEASE_PAGE
 
         self.init_ui()
         self.setup_tray_icon()
@@ -684,6 +722,7 @@ class MainWindow(QMainWindow):
         self.hb_worker.start()
 
         QTimer.singleShot(500, self.fetch_data)
+        QTimer.singleShot(1000, self.check_for_updates) # Vérification de mise à jour au démarrage
 
         self.request_toggle_visibility.connect(self.perform_toggle)
         self.request_notification.connect(self.show_in_game_notification)
@@ -694,6 +733,64 @@ class MainWindow(QMainWindow):
             self.game_monitor_timer = QTimer()
             self.game_monitor_timer.timeout.connect(self.monitor_game_process)
             self.game_monitor_timer.start(5000)
+
+    # NOUVELLES MÉTHODES POUR LA MISE À JOUR
+    def check_for_updates(self):
+        self.version_worker = GitHubVersionWorker()
+        self.version_worker.version_checked.connect(self.handle_version_check)
+        self.version_worker.start()
+
+    def handle_version_check(self, latest_tag, release_url):
+        if not latest_tag: return
+        
+        self.latest_version = latest_tag
+        self.latest_release_url = release_url
+        
+        try:
+            current_parts = list(map(int, self.current_version.split('.')))
+            latest_parts = list(map(int, self.latest_version.split('.')))
+            
+            is_newer = latest_parts > current_parts
+        except ValueError:
+            print("⚠️ Erreur de format de version lors de la comparaison.")
+            is_newer = False
+
+        if is_newer:
+            self.show_update_button()
+
+    def show_update_button(self):
+        if self.update_button: 
+            self.update_button.show()
+            return 
+        
+        self.update_button = QPushButton(get_translation('update_available_button', 'UI'))
+        self.update_button.setStyleSheet("""
+            QPushButton { 
+                background-color: #008000; color: white; font-weight: bold; 
+                padding: 5px 10px; border: none; border-radius: 3px; 
+                text-transform: uppercase; font-size: 10px; margin-right: 5px;
+            }
+            QPushButton:hover { background-color: #00a000; }
+        """)
+        self.update_button.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.update_button.clicked.connect(self.open_release_page)
+        
+        central = self.centralWidget()
+        if not central: return
+        
+        self.update_button.setParent(central)
+        self.update_button.adjustSize()
+        
+        # Positionnement: à gauche de settings_button
+        self.update_button.move(
+            central.width() - self.update_button.width() - 45, 
+            7 
+        )
+        self.update_button.show()
+
+    def open_release_page(self):
+        QDesktopServices.openUrl(QUrl(self.latest_release_url))
+    # FIN DES NOUVELLES MÉTHODES
 
     def sync_checkboxes(self, event_name, map_name, is_checked):
         """Met à jour UNIQUEMENT les événements qui ont le même nom ET la même map."""
@@ -756,9 +853,13 @@ class MainWindow(QMainWindow):
         self.settings_button.setParent(central)
         self.settings_button.move(central.width() - 40, 5)
         self.settings_button.show()
+        
+        # Initialiser le bouton de mise à jour s'il existe
+        if self.update_button:
+             self.show_update_button()
 
     def open_settings(self):
-        settings_window = SettingsWindow(self, HOTKEY, self.current_notify_min)
+        settings_window = SettingsWindow(self, HOTKEY, self.current_notify_min, self.current_version)
         if settings_window.exec() == QDialog.DialogCode.Accepted:
             self.current_notify_min = NOTIFY_SECONDS // 60
             self.start_global_hotkey()
@@ -795,6 +896,14 @@ class MainWindow(QMainWindow):
     def resizeEvent(self, event):
         if hasattr(self, 'settings_button') and self.centralWidget():
             self.settings_button.move(self.centralWidget().width() - 40, 5)
+        
+        if self.update_button and self.update_button.isVisible():
+            central = self.centralWidget()
+            if central:
+                self.update_button.move(
+                    central.width() - self.update_button.width() - 45, 
+                    7
+                )
         super().resizeEvent(event)
 
     def fetch_data(self):
