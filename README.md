@@ -1,7 +1,6 @@
+# ARC-Sight (OPEN SOURCE)
 
 <img width="1919" height="1059" alt="Capture d&#39;écran 2025-12-05 074427" src="https://github.com/user-attachments/assets/851f53de-b95e-4052-b748-205dd45a3770" />
-
-# ARC-Sight (OPEN SOURCE)
 
 ![Version](https://img.shields.io/badge/version-1.0.5-blue)
 ![Platform](https://img.shields.io/badge/platform-Windows-lightgrey)
