@@ -47,7 +47,7 @@ API_URL = "https://metaforge.app/api/arc-raiders/event-timers"
 REFRESH_API_INTERVAL_SEC = 60 
 REFRESH_UI_INTERVAL_MS = 500
 
-MASTER_SERVER_GITHUB_URL = "https://raw.githubusercontent.com/rodafux/ARC-Sight/refs/heads/main/server_url.txt"
+MASTER_SERVER_GITHUB_URL = "https://arc-sight-stats-viewer.onrender.com/ping"
 
 HOTKEY = DEFAULT_CONFIG['hotkey']
 NOTIFY_SECONDS = DEFAULT_CONFIG['notify_minutes'] * 60
@@ -169,36 +169,26 @@ class ApiWorker(QThread):
 
 class HeartbeatWorker(QThread):
     def run(self):
-        master_url = None
-        
-        print("❤️ [Heartbeat] Recherche du serveur maître...")
-        while master_url is None:
-            try:
-                r = requests.get(MASTER_SERVER_GITHUB_URL, timeout=5)
-                if r.status_code == 200:
-                    candidate = r.text.strip()
-                    if candidate.startswith("http"):
-                        master_url = candidate
-                        print(f"❤️ [Heartbeat] Serveur maître identifié : {master_url}")
-                    else:
-                        print("❤️ [Heartbeat] URL GitHub invalide, attente...")
-                else:
-                    print(f"❤️ [Heartbeat] GitHub inaccessible ({r.status_code})")
-            except Exception as e:
-                print(f"❤️ [Heartbeat] Erreur connexion GitHub: {e}")
-            
-            if master_url is None: self.sleep(30) 
-        
-        ping_endpoint = f"{master_url}/ping"
-        if not ping_endpoint.endswith("/"): 
-            pass
+        target_url = "https://arc-sight-stats-viewer.onrender.com/ping"
+        print(f"❤️ [Heartbeat] CIBLE : {target_url}")
+        headers = {
+            "User-Agent": "ARC-Sight-Desktop-Client/1.0",
+            "X-App-Secret": "ARC-RAIDERS-OPS" 
+        }
 
         while True:
             try:
-                requests.post(ping_endpoint, timeout=5)
+                response = requests.post(target_url, timeout=60, headers=headers)
+                
+                if response.status_code == 200:
+                    print(f"✅ PING RÉUSSI ! Réponse serveur : {response.json()}")
+                else:
+                    print(f"⚠️ PING ÉCHOUÉ. Code : {response.status_code}")
+
+            except requests.exceptions.ReadTimeout:
+                print("⏳ TIMEOUT : Le serveur met trop de temps.")
             except Exception as e:
-                print(f"❤️ [Heartbeat] Echec du ping : {e}")
-            
+                print(f"💀 ERREUR : {e}")
             self.sleep(60)
 
 class AudioPlayer(QObject):
@@ -347,7 +337,7 @@ class SettingsWindow(QDialog):
         
         text_layout.addWidget(QLabel(f"<h3>{get_translation('about_header', 'SETTINGS')}</h3>"))
         
-        lbl_ver = QLabel("Version: <b>1.0.4</b>")
+        lbl_ver = QLabel("Version: <b>1.0.5</b>")
         lbl_ver.setStyleSheet("color: #888;")
         text_layout.addWidget(lbl_ver)
         
