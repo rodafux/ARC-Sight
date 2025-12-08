@@ -1,16 +1,16 @@
 import sys
 import os
 import requests
-import psutil 
 import webbrowser
-import configparser 
-import subprocess 
+import configparser
+import subprocess
 import threading
 import time
+import ctypes
+from ctypes import wintypes
 
 from datetime import datetime, timedelta, timezone
 
-from pynput import keyboard as pynput_keyboard
 
 from PyQt6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
@@ -21,6 +21,24 @@ from PyQt6.QtWidgets import (
 from PyQt6.QtCore import Qt, QTimer, QThread, pyqtSignal, QRect, QPropertyAnimation, QEasingCurve, QPoint, QUrl, QSize, QObject
 from PyQt6.QtGui import QColor, QScreen, QIcon, QAction, QDesktopServices, QIntValidator, QPixmap, QKeySequence
 from PyQt6.QtMultimedia import QMediaPlayer, QAudioOutput 
+
+user32 = ctypes.windll.user32
+kernel32 = ctypes.windll.kernel32
+
+class MSG(ctypes.Structure):
+    _fields_ = [("hwnd", ctypes.c_void_p),
+                ("message", ctypes.c_uint),
+                ("wParam", ctypes.c_void_p),
+                ("lParam", ctypes.c_void_p),
+                ("time", ctypes.c_ulong),
+                ("pt", wintypes.POINT)]
+
+WM_HOTKEY = 0x0312
+MOD_NOREPEAT = 0x4000
+MOD_CONTROL = 0x0002
+MOD_SHIFT = 0x0004
+MOD_ALT = 0x0001
+WM_QUIT = 0x0012
 
 def resource_path(relative_path):
     try:
@@ -58,7 +76,7 @@ SOUND_ENABLED = DEFAULT_CONFIG['sound_enabled'] == 'True'
 CURRENT_LANGUAGE = DEFAULT_CONFIG['language']
 TRANSLATION_STRINGS = {} 
 AUTO_CLOSE = True
-GAME_EXE_KEYWORD = "ARC"
+GAME_WINDOW_TITLE = "ARC Raiders" 
 BANNER_HEIGHT = 350 
 CARD_WIDTH = 160
 CARD_HEIGHT = 190
@@ -171,50 +189,98 @@ class ApiWorker(QThread):
             self.error_occurred.emit(str(e))
 
 class GitHubVersionWorker(QThread):
-    version_checked = pyqtSignal(str, str) # version_tag, release_url
-    
+    version_checked = pyqtSignal(str, str) 
     def run(self):
         try:
             headers = {'User-Agent': APP_NAME}
             response = requests.get(GITHUB_RELEASE_API, headers=headers, timeout=10)
             response.raise_for_status()
             data = response.json()
-            
             latest_tag = data.get('tag_name', '').lstrip('vV') 
             release_url = data.get('html_url', GITHUB_RELEASE_PAGE)
-            
-            if latest_tag:
-                self.version_checked.emit(latest_tag, release_url)
-            else:
-                self.version_checked.emit("", "")
-                
+            if latest_tag: self.version_checked.emit(latest_tag, release_url)
+            else: self.version_checked.emit("", "")
         except Exception as e:
             print(f"❌ Erreur GitHub API: {e}")
             self.version_checked.emit("", "")
 
 class HeartbeatWorker(QThread):
+    def __init__(self, app_version):
+        super().__init__()
+        self.app_version = app_version
+
     def run(self):
         target_url = "https://arc-sight-stats-viewer.onrender.com/ping"
-        print(f"❤️ [Heartbeat] CIBLE : {target_url}")
-        headers = {
-            "User-Agent": "ARC-Sight-Desktop-Client/1.0",
-            "X-App-Secret": "ARC-RAIDERS-OPS" 
-        }
-
+        print(f"❤️ [Heartbeat] CIBLE : {target_url} | VERSION : {self.app_version}")
+        headers = {"User-Agent": "ARC-Sight-Desktop-Client/1.0", "X-App-Secret": "ARC-RAIDERS-OPS"}
         while True:
             try:
-                response = requests.post(target_url, timeout=60, headers=headers)
-                
-                if response.status_code == 200:
-                    print(f"✅ PING RÉUSSI ! Réponse serveur : {response.json()}")
-                else:
-                    print(f"⚠️ PING ÉCHOUÉ. Code : {response.status_code}")
-
-            except requests.exceptions.ReadTimeout:
-                print("⏳ TIMEOUT : Le serveur met trop de temps.")
-            except Exception as e:
-                print(f"💀 ERREUR : {e}")
+                # Modification ici : ajout de json={"version": ...}
+                requests.post(target_url, timeout=60, headers=headers, json={"version": self.app_version})
+            except Exception as e: 
+                print(f"Erreur Heartbeat: {e}")
             self.sleep(60)
+
+
+class NativeHotKey(QThread):
+    trigger = pyqtSignal()
+
+    def __init__(self, key_code=None, modifiers=0):
+        super().__init__()
+        self.key_code = key_code
+        self.modifiers = modifiers
+        self.hk_id = 1
+        self.thread_id = None 
+
+    def run(self):
+        if not self.key_code: return
+
+        self.thread_id = kernel32.GetCurrentThreadId()
+
+        if not user32.RegisterHotKey(None, self.hk_id, self.modifiers | MOD_NOREPEAT, self.key_code):
+            print("Impossible d'enregistrer le raccourci clavier global.")
+            return
+
+        msg = MSG()
+        try:
+
+            while user32.GetMessageW(ctypes.byref(msg), None, 0, 0) > 0:
+                if msg.message == WM_HOTKEY:
+                    self.trigger.emit()
+                elif msg.message == WM_QUIT:
+                    break 
+                
+                user32.TranslateMessage(ctypes.byref(msg))
+                user32.DispatchMessageW(ctypes.byref(msg))
+        finally:
+            user32.UnregisterHotKey(None, self.hk_id)
+
+    def stop(self):
+        if self.thread_id:
+            user32.PostThreadMessageW(self.thread_id, WM_QUIT, 0, 0)
+
+        self.quit()
+        self.wait()
+
+def get_vk_code(text):
+    """Convertit une chaîne (ex: 'F9', 'A') en code Virtual Key Windows."""
+    text = text.upper()
+
+    if text.startswith('F'):
+        try:
+            num = int(text[1:])
+            if 1 <= num <= 24:
+                return 0x70 + (num - 1)
+        except ValueError: pass
+
+    if len(text) == 1 and text.isdigit():
+        return 0x30 + int(text)
+
+    if len(text) == 1 and text.isalpha():
+        return 0x41 + (ord(text) - ord('A'))
+        
+    return 0x78
+
 
 class AudioPlayer(QObject):
     def __init__(self, parent=None):
@@ -295,7 +361,7 @@ class SettingsWindow(QDialog):
         self.temp_hotkey_string = current_hotkey
         self.available_languages = self.find_available_languages()
         self.capturing_key = False 
-        self.current_app_version = current_app_version # Utilisé pour l'affichage
+        self.current_app_version = current_app_version
 
         self.init_ui(current_notify_min)
 
@@ -350,7 +416,6 @@ class SettingsWindow(QDialog):
         settings_layout.addWidget(self.sound_cb)
 
         main_layout.addWidget(settings_group)
-        
         main_layout.addStretch(1)
 
         about_group = QFrame()
@@ -360,10 +425,8 @@ class SettingsWindow(QDialog):
         text_container = QWidget()
         text_layout = QVBoxLayout(text_container)
         text_layout.setContentsMargins(0, 0, 0, 0)
-        
         text_layout.addWidget(QLabel(f"<h3>{get_translation('about_header', 'SETTINGS')}</h3>"))
         
-        # UTILISATION DE LA VERSION CENTRALISÉE
         try:
             version_txt = get_translation('current_version', 'SETTINGS').format(version=self.current_app_version)
         except: 
@@ -386,7 +449,6 @@ class SettingsWindow(QDialog):
         api_label = QLabel(api_txt)
         api_label.setOpenExternalLinks(True)
         text_layout.addWidget(api_label)
-        
         text_layout.addStretch()
         
         logo_label = QLabel()
@@ -414,6 +476,7 @@ class SettingsWindow(QDialog):
         self.hotkey_input.setFocus() 
 
     def keyPressEvent(self, event):
+
         if self.capturing_key:
             key = event.key()
             if key in (Qt.Key.Key_Control, Qt.Key.Key_Shift, Qt.Key.Key_Alt, Qt.Key.Key_Meta):
@@ -429,29 +492,37 @@ class SettingsWindow(QDialog):
         super().keyPressEvent(event)
 
     def save_and_apply(self):
-        try:
-            notify_min = int(self.notify_input.text())
-            if not 1 <= notify_min <= 60: raise ValueError
-        except: return
-        
-        global HOTKEY, NOTIFY_SECONDS, SOUND_ENABLED, CURRENT_LANGUAGE
-        HOTKEY = self.temp_hotkey_string
-        NOTIFY_SECONDS = notify_min * 60
-        SOUND_ENABLED = self.sound_cb.isChecked()
-        CURRENT_LANGUAGE = self.lang_selector.currentData()
-        
-        config = configparser.ConfigParser()
-        config['Settings'] = {
-            'hotkey': HOTKEY,
-            'notify_minutes': str(notify_min),
-            'sound_enabled': str(SOUND_ENABLED),
-            'language': CURRENT_LANGUAGE
-        }
-        save_config(config)
-        load_language(CURRENT_LANGUAGE)
-        self.accept()
-        self.main_window.restart_application()
-
+            try:
+                notify_min = int(self.notify_input.text())
+                if not 1 <= notify_min <= 60: raise ValueError
+            except: return
+            
+            global HOTKEY, NOTIFY_SECONDS, SOUND_ENABLED, CURRENT_LANGUAGE
+            
+            HOTKEY = self.temp_hotkey_string
+            NOTIFY_SECONDS = notify_min * 60
+            SOUND_ENABLED = self.sound_cb.isChecked()
+            
+            new_lang = self.lang_selector.currentData()
+            lang_changed = (new_lang != CURRENT_LANGUAGE)
+            CURRENT_LANGUAGE = new_lang
+            
+            config = configparser.ConfigParser()
+            config['Settings'] = {
+                'hotkey': HOTKEY,
+                'notify_minutes': str(notify_min),
+                'sound_enabled': str(SOUND_ENABLED),
+                'language': CURRENT_LANGUAGE
+            }
+            save_config(config)
+            
+            if lang_changed:
+                load_language(CURRENT_LANGUAGE)
+                
+            self.accept()
+            
+            if self.main_window:
+                self.main_window.apply_configuration()
 
 def get_next_start_timestamp(event_data):
     times = event_data.get('times', [])
@@ -497,13 +568,11 @@ class HudEventCard(QFrame):
         self.notify_cb.toggled.connect(self.on_toggle)
 
     def on_toggle(self, checked):
-        """Émet le signal de changement d'état avec l'ID unique (Nom + Map)."""
         name = self.event_data.get('name')
         map_name = self.event_data.get('map')
         self.state_changed.emit(name, map_name, checked)
 
     def setup_background(self):
-        """Charge l'image de fond correspondant à la map."""
         map_name_api = self.event_data.get('map')
         image_file = MAP_IMAGES.get(map_name_api)
         
@@ -513,7 +582,6 @@ class HudEventCard(QFrame):
                 self.setStyleSheet(f"QFrame#HudCard {{ border-image: url({img_path}) 0 0 0 0 stretch stretch; border: 1px solid #444; border-radius: 4px; }}")
 
     def init_ui(self):
-        """Crée l'interface visuelle de la carte."""
         main_layout = QVBoxLayout(self)
         main_layout.setContentsMargins(0, 0, 0, 0)
         
@@ -566,14 +634,12 @@ class HudEventCard(QFrame):
         self.setGraphicsEffect(shadow)
 
     def parse_time_str(self, time_str):
-        """Convertit '14:30' en entiers (heures, minutes)."""
         try:
             h, m = map(int, time_str.split(':'))
             return (0, m, True) if h == 24 else (h, m, False)
         except: return 0, 0, False
 
     def recalculate_schedule(self):
-        """Calcule la prochaine heure de début ou de fin."""
         times = self.event_data.get('times', [])
         if not times:
             self.status_label.setText(get_translation('status_unknown', 'UI'))
@@ -620,7 +686,6 @@ class HudEventCard(QFrame):
             self.target_time = None
 
     def setStatusStyle(self, active):
-        """Change la couleur de bordure et l'opacité selon l'état."""
         current_style = self.styleSheet()
         if active:
             self.overlay.setStyleSheet("background-color: rgba(0, 0, 0, 0.85);") 
@@ -631,7 +696,6 @@ class HudEventCard(QFrame):
             self.setup_background()
 
     def update_display(self):
-        """Met à jour le timer chaque seconde. Retourne True si une notif doit être envoyée."""
         if not self.target_time or (datetime.now(timezone.utc) > self.target_time):
             self.recalculate_schedule()
             if not self.target_time: return False
@@ -698,11 +762,10 @@ class MainWindow(QMainWindow):
         self.game_detected_once = False
         self.audio_player = AudioPlayer(self)
         self.settings_button = None
-        self.update_button = None # Nouveau bouton de mise à jour
-        self.hotkey_listener = None 
+        self.update_button = None 
+        self.hotkey_thread = None 
         
-        # PROPRIÉTÉS POUR LA VÉRIFICATION DE VERSION
-        self.current_version = "1.0.6"
+        self.current_version = "1.0.8"
         self.latest_version = None
         self.latest_release_url = GITHUB_RELEASE_PAGE
 
@@ -718,11 +781,11 @@ class MainWindow(QMainWindow):
         self.ui_timer.timeout.connect(self.tick_ui)
         self.ui_timer.start(REFRESH_UI_INTERVAL_MS)
         
-        self.hb_worker = HeartbeatWorker()
+        self.hb_worker = HeartbeatWorker(self.current_version)
         self.hb_worker.start()
 
         QTimer.singleShot(500, self.fetch_data)
-        QTimer.singleShot(1000, self.check_for_updates) # Vérification de mise à jour au démarrage
+        QTimer.singleShot(1000, self.check_for_updates)
 
         self.request_toggle_visibility.connect(self.perform_toggle)
         self.request_notification.connect(self.show_in_game_notification)
@@ -734,7 +797,45 @@ class MainWindow(QMainWindow):
             self.game_monitor_timer.timeout.connect(self.monitor_game_process)
             self.game_monitor_timer.start(5000)
 
-    # NOUVELLES MÉTHODES POUR LA MISE À JOUR
+    def apply_configuration(self):
+            print("Application de la configuration...")
+
+            if self.ui_timer.isActive(): self.ui_timer.stop()
+            if self.api_timer.isActive(): self.api_timer.stop()
+
+            self.current_notify_min = NOTIFY_SECONDS // 60
+            
+            self.start_global_hotkey()
+
+            self.setWindowTitle(get_translation('app_title', 'UI'))
+            if hasattr(self, 'tray_icon') and self.tray_icon.contextMenu():
+                actions = self.tray_icon.contextMenu().actions()
+                if len(actions) >= 4:
+                    actions[0].setText(get_translation('header', 'SETTINGS'))
+                    actions[1].setText(get_translation('toggle_action', 'UI').format(hotkey=HOTKEY.upper()))
+                    actions[3].setText(get_translation('quit_overlay_action', 'UI'))
+
+            if self.update_button:
+                self.update_button.setText(get_translation('update_available_button', 'UI'))
+
+
+            temp_widgets = self.event_widgets.copy()
+            self.event_widgets.clear()
+            self.tabs.clear()
+            
+            for w in temp_widgets:
+                w.deleteLater() 
+
+            QTimer.singleShot(200, self.restart_loops)
+            
+            print(f"Config appliquée : Langue={CURRENT_LANGUAGE}, Hotkey={HOTKEY}")
+
+    def restart_loops(self):
+        """Fonction helper pour relancer API et Timers proprement"""
+        self.fetch_data()
+        self.api_timer.start(REFRESH_API_INTERVAL_SEC * 1000)
+        self.ui_timer.start(REFRESH_UI_INTERVAL_MS)
+
     def check_for_updates(self):
         self.version_worker = GitHubVersionWorker()
         self.version_worker.version_checked.connect(self.handle_version_check)
@@ -742,27 +843,20 @@ class MainWindow(QMainWindow):
 
     def handle_version_check(self, latest_tag, release_url):
         if not latest_tag: return
-        
         self.latest_version = latest_tag
         self.latest_release_url = release_url
-        
         try:
             current_parts = list(map(int, self.current_version.split('.')))
             latest_parts = list(map(int, self.latest_version.split('.')))
-            
             is_newer = latest_parts > current_parts
         except ValueError:
-            print("⚠️ Erreur de format de version lors de la comparaison.")
             is_newer = False
-
-        if is_newer:
-            self.show_update_button()
+        if is_newer: self.show_update_button()
 
     def show_update_button(self):
         if self.update_button: 
             self.update_button.show()
             return 
-        
         self.update_button = QPushButton(get_translation('update_available_button', 'UI'))
         self.update_button.setStyleSheet("""
             QPushButton { 
@@ -774,26 +868,17 @@ class MainWindow(QMainWindow):
         """)
         self.update_button.setCursor(Qt.CursorShape.PointingHandCursor)
         self.update_button.clicked.connect(self.open_release_page)
-        
         central = self.centralWidget()
         if not central: return
-        
         self.update_button.setParent(central)
         self.update_button.adjustSize()
-        
-        # Positionnement: à gauche de settings_button
-        self.update_button.move(
-            central.width() - self.update_button.width() - 45, 
-            7 
-        )
+        self.update_button.move(central.width() - self.update_button.width() - 45, 7)
         self.update_button.show()
 
     def open_release_page(self):
         QDesktopServices.openUrl(QUrl(self.latest_release_url))
-    # FIN DES NOUVELLES MÉTHODES
 
     def sync_checkboxes(self, event_name, map_name, is_checked):
-        """Met à jour UNIQUEMENT les événements qui ont le même nom ET la même map."""
         for w in self.event_widgets:
             if w.event_data.get('name') == event_name and w.event_data.get('map') == map_name:
                 w.notify_cb.blockSignals(True)
@@ -801,21 +886,28 @@ class MainWindow(QMainWindow):
                 w.notify_cb.blockSignals(False)
 
     def start_global_hotkey(self):
-        if self.hotkey_listener: self.hotkey_listener.stop()
-        hotkey_str = HOTKEY.lower()
-        if len(hotkey_str) > 1 and not hotkey_str.startswith('<'):
-            hotkey_str = f"<{hotkey_str}>"
-        hotkey_map = {hotkey_str: self.on_hotkey_triggered}
-        try:
-            self.hotkey_listener = pynput_keyboard.GlobalHotKeys(hotkey_map)
-            self.hotkey_listener.start()
-        except Exception as e:
-            print(f"Erreur bind hotkey '{hotkey_str}': {e}")
-    def on_hotkey_triggered(self):
-        self.request_toggle_visibility.emit()
+
+        if self.hotkey_thread:
+            self.hotkey_thread.stop()
+            self.hotkey_thread = None
+        
+        vk_code = get_vk_code(HOTKEY)
+        
+
+        self.hotkey_thread = NativeHotKey(key_code=vk_code)
+        self.hotkey_thread.trigger.connect(self.perform_toggle)
+        self.hotkey_thread.start()
+
     def force_quit(self):
+        # Nettoyage propre
+        if self.hotkey_thread:
+            self.hotkey_thread.stop()
         QApplication.quit()
         sys.exit(0)
+
+    def open_settings(self):
+            settings_window = SettingsWindow(self, HOTKEY, self.current_notify_min, self.current_version)
+            settings_window.exec()
 
     def setup_tray_icon(self):
         self.tray_icon = QSystemTrayIcon(self)
@@ -853,26 +945,15 @@ class MainWindow(QMainWindow):
         self.settings_button.setParent(central)
         self.settings_button.move(central.width() - 40, 5)
         self.settings_button.show()
-        
-        # Initialiser le bouton de mise à jour s'il existe
         if self.update_button:
              self.show_update_button()
 
-    def open_settings(self):
-        settings_window = SettingsWindow(self, HOTKEY, self.current_notify_min, self.current_version)
-        if settings_window.exec() == QDialog.DialogCode.Accepted:
-            self.current_notify_min = NOTIFY_SECONDS // 60
-            self.start_global_hotkey()
-            self.restart_application()
+
 
     def monitor_game_process(self):
-        game_is_running = False
-        try:
-            for proc in psutil.process_iter(['name']):
-                if proc.info['name'] and GAME_EXE_KEYWORD.lower() in proc.info['name'].lower():
-                    game_is_running = True
-                    break
-        except: pass
+        hwnd = user32.FindWindowW(None, GAME_WINDOW_TITLE)
+        game_is_running = hwnd != 0
+
         if game_is_running: self.game_detected_once = True 
         if self.game_detected_once and not game_is_running: self.force_quit()
 
@@ -913,18 +994,14 @@ class MainWindow(QMainWindow):
         self.worker.start()
 
     def load_data(self, data):
-        """Met à jour UNIQUEMENT les événements qui ont le même nom ET la même map."""
         saved_states = {}
         for w in self.event_widgets:
             try:
                 name = w.event_data.get('name')
                 map_name = w.event_data.get('map')
-                
                 unique_key = f"{name}_{map_name}"
-                
                 is_checked = w.notify_cb.isChecked()
                 has_notified = w.notified_state
-                
                 if unique_key in saved_states:
                     if has_notified: saved_states[unique_key]['notified'] = True
                     if is_checked: saved_states[unique_key]['checked'] = True
@@ -982,7 +1059,6 @@ class MainWindow(QMainWindow):
             w = HudEventCard(evt)
             name = evt.get('name')
             map_name = evt.get('map')
-            
             unique_key = f"{name}_{map_name}"
             
             w.state_changed.connect(self.sync_checkboxes)
@@ -1011,8 +1087,21 @@ class MainWindow(QMainWindow):
         self.tabs.addTab(tab_page, tab_name)
 
     def tick_ui(self):
-        for w in self.event_widgets:
-            if w.update_display(): self.trigger_notification(w.event_data)
+                if not self.event_widgets:
+                    return
+
+                for w in list(self.event_widgets):
+                    try:
+
+                        if not w: 
+                            continue
+
+                        if w.update_display(): 
+                            self.trigger_notification(w.event_data)
+                    except RuntimeError:
+                        pass
+                    except Exception as e:
+                        print(f"Erreur UI Tick: {e}")
 
     def trigger_notification(self, data):
         cat = get_translation(data['name'], 'TABS')
