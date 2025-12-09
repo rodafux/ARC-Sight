@@ -42,7 +42,16 @@
 You can access settings by clicking the **Gear Icon** on the overlay or by right-clicking the **System Tray Icon** (near your clock).
 * **Hotkey:** Change the key to show/hide the overlay.
 * **Alerts:** Set how many minutes before an event you want to be notified.
-* **Language:** Switch the interface language.
+* **Language:** Switch the interface language.*
+
+> **⚠️ Statistical Data (Heartbeat)**
+> To track program adoption and ensure effective maintenance, the application sends a "heartbeat" (a non-abusive and very light ping) to a personal server.
+> The only data collected is anonymous and strictly for statistical purposes:
+> - The number of simultaneous uses.
+> - The ratio of program versions being used.
+> 
+> No personal data is ever transmitted.
+> As the project is open source, any user is free to review the source code or remove this functionality and recompile the application if they wish. 
 
 ---
 
@@ -80,6 +89,15 @@ Vous pouvez accéder aux réglages via la **Roue Crantée** sur l'overlay ou en 
 * **Raccourci :** Changez la touche pour afficher/masquer.
 * **Alertes :** Définissez combien de minutes avant l'événement vous souhaitez être prévenu.
 * **Langue :** Changez la langue de l'interface.
+
+> **⚠️ Données Statistiques (Heartbeat)**
+> Afin de suivre l'adoption du programme et d'assurer une maintenance efficace, l'application envoie un "heartbeat" (un ping non abusif et très léger) vers un serveur personnel.
+> Les seules données collectées sont anonymes et servent uniquement à des fins statistiques :
+> - Le nombre d'utilisations simultanées.
+> - Le ratio des versions du programme utilisées.
+>   
+> Aucune donnée personnelle n'est transmise.
+> Étant donné que le projet est open source, tout utilisateur est libre d'examiner le code source ou de retirer cette fonctionnalité et de recompiler l'application s'il le souhaite.
 
 ---
 
