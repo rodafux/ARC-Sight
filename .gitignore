@@ -1,5 +1,35 @@
+# === Dossiers de compilation et temporaires ===
 [Bb]in/
 [Oo]bj/
 .vs/
+.vs*
+Generated\ Files/
+
+# === Dossiers de sortie et publication ===
+# Ces dossiers contiennent les DLL et installeurs lourds (219 Mo) 
+# qui ne doivent pas être sur le code source
+[Pp]ublish/
+[Rr]eleases/
+Release/
+Debug/
+
+# === Fichiers utilisateur et cache ===
 *.user
 *.suo
+*.userosscache
+*.sln.docstates
+*.userprefs
+*.db
+*.opendb
+
+# === Archives et fichiers de packaging ===
+# Pour éviter d'envoyer les backups ou les raretés locales
+*.rar
+*.zip
+*.7z
+*.nupkg
+
+# === Velopack / Squirrel ===
+# On ignore les dossiers de staging de mise à jour
+Update.exe
+Squirrel.exe
