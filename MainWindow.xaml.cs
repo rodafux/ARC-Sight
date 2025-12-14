@@ -24,7 +24,7 @@ namespace ARC_Sight
 {
     public partial class MainWindow : Window
     {
-        public static string AppVersion { get; } = "v1.2.0";
+        public static string AppVersion { get; } = "v1.2.1";
 
         private const string NOTE_URL = "https://raw.githubusercontent.com/rodafux/ARC-Sight/refs/heads/Default/msg.ini";
         private const string API_URL = "https://metaforge.app/api/arc-raiders/event-timers";
@@ -446,6 +446,11 @@ namespace ARC_Sight
                 Tabs.Clear();
                 _ = FetchData();
                 _ = FetchNote();
+
+                if (UpdateBtn.Visibility == Visibility.Visible && UpdateBtn.IsEnabled)
+                {
+                    UpdateBtn.Content = GetTrans("update_available_button", "UI");
+                }
             }
         }
 
@@ -453,14 +458,21 @@ namespace ARC_Sight
         {
             string title = GetTrans("exit_confirm_title", "UI");
             string message = GetTrans("exit_confirm_msg", "UI");
+            string yesText = GetTrans("yes_btn", "UI");
+            string noText = GetTrans("no_btn", "UI");
 
-            var result = MessageBox.Show(message, title, MessageBoxButton.YesNo, MessageBoxImage.Question);
-            if (result == MessageBoxResult.Yes)
+            if (string.IsNullOrEmpty(yesText)) yesText = "YES";
+            if (string.IsNullOrEmpty(noText)) noText = "NO";
+
+            var dialog = new ConfirmationWindow(title, message, yesText, noText);
+            dialog.Owner = this;
+
+            if (dialog.ShowDialog() == true)
             {
                 Application.Current.Shutdown();
             }
         }
-    } // Fin de la classe MainWindow
+    }
 
     public class TabViewModel
     {
@@ -577,7 +589,19 @@ namespace ARC_Sight
                 if (diff.TotalSeconds <= MainWindow.NotifySeconds)
                 {
                     TimerColor = Brushes.Yellow; BorderColor = Brushes.Yellow;
-                    if (IsAlertEnabled && !HasNotified) { RequestNotification?.Invoke(Title, $"dans {((int)diff.TotalMinutes)} minute(s) sur {Map}"); HasNotified = true; }
+                    if (IsAlertEnabled && !HasNotified)
+                    {
+                        string msgPattern = MainWindow.GetTrans("notify_message", "UI");
+
+                        if (string.IsNullOrEmpty(msgPattern)) msgPattern = "STARTING IN {minutes} MIN - {map_name}";
+
+                        string msg = msgPattern
+                            .Replace("{minutes}", ((int)diff.TotalMinutes).ToString())
+                            .Replace("{map_name}", Map);
+
+                        RequestNotification?.Invoke(Title, msg);
+                        HasNotified = true;
+                    }
                 }
                 else { TimerColor = Brushes.White; BorderColor = new SolidColorBrush(Color.FromRgb(60, 60, 60)); HasNotified = false; }
             }

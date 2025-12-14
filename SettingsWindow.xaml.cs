@@ -28,14 +28,18 @@ namespace ARC_Sight
             TitleBlock.Text = MainWindow.GetTrans("header", "SETTINGS");
             HotkeyLabel.Text = MainWindow.GetTrans("hotkey_label", "SETTINGS");
             AlertLabel.Text = MainWindow.GetTrans("alert_minutes_label", "SETTINGS");
+
+            LangLabel.Text = MainWindow.GetTrans("language_label", "SETTINGS");
+
             SoundCheck.Content = MainWindow.GetTrans("sound_toggle", "SETTINGS");
             TimeCheck.Content = MainWindow.GetTrans("show_local_time", "SETTINGS");
-            
+
             SaveBtn.Content = MainWindow.GetTrans("save_button", "SETTINGS");
-            CancelBtn.Content = "Annuler"; 
+
+            CancelBtn.Content = MainWindow.GetTrans("cancel_button", "SETTINGS");
 
             AboutHeader.Text = MainWindow.GetTrans("about_header", "SETTINGS");
-            
+
             string createdTxt = MainWindow.GetTrans("created_by", "SETTINGS");
             CreatedBy.Text = createdTxt.Replace("**{author}**", "rodafux").Replace("{author}", "rodafux");
 
