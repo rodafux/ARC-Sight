@@ -28,7 +28,7 @@ namespace ARC_Sight
 {
     public partial class MainWindow : Window
     {
-        public static string AppVersion { get; } = "1.3.3";
+        public static string AppVersion { get; } = "1.3.4";
 
         private const string NOTE_URL = "https://raw.githubusercontent.com/rodafux/ARC-Sight/refs/heads/Default/msg.ini";
         private const string API_URL = "https://metaforge.app/api/arc-raiders/events-schedule";
