@@ -352,7 +352,8 @@ namespace ARC_Sight
 
         private async Task InitialLoad()
         {
-            StatusText.Text = "Loading...";
+            StatusText.Text = "Initializing...";
+            await Task.Delay(1000);
             await FetchData();
             await FetchNote();
             await CheckAndShowChangelog();
@@ -440,44 +441,63 @@ namespace ARC_Sight
 
         private async Task FetchData()
         {
-            try
+            int maxRetries = 3;
+            int delayBetweenRetries = 2000;
+
+            for (int i = 0; i < maxRetries; i++)
             {
-                StatusText.Text = "Updating...";
-                _client.DefaultRequestHeaders.UserAgent.ParseAdd("ARC-Sight/1.0");
-
-                var json = await _client.GetStringAsync(API_URL);
-
-                var doc = JsonDocument.Parse(json);
-                JsonElement root = doc.RootElement;
-                List<ScheduleEvent>? rawEvents = null;
-
-                if (root.ValueKind == JsonValueKind.Array)
+                try
                 {
-                    rawEvents = JsonSerializer.Deserialize<List<ScheduleEvent>>(json);
+                    StatusText.Text = i == 0 ? "Updating..." : $"Retrying ({i}/{maxRetries})...";
+
+                    if (!_client.DefaultRequestHeaders.UserAgent.Any())
+                    {
+                        _client.DefaultRequestHeaders.UserAgent.ParseAdd("ARC-Sight/1.0");
+                    }
+
+                    var response = await _client.GetAsync(API_URL);
+
+                    if (response.IsSuccessStatusCode)
+                    {
+                        var json = await response.Content.ReadAsStringAsync();
+                        var doc = JsonDocument.Parse(json);
+                        JsonElement root = doc.RootElement;
+                        List<ScheduleEvent>? rawEvents = null;
+
+                        if (root.ValueKind == JsonValueKind.Array)
+                        {
+                            rawEvents = JsonSerializer.Deserialize<List<ScheduleEvent>>(json);
+                        }
+                        else if (root.ValueKind == JsonValueKind.Object)
+                        {
+                            if (root.TryGetProperty("events", out var eventsElem))
+                                rawEvents = JsonSerializer.Deserialize<List<ScheduleEvent>>(eventsElem.GetRawText());
+                            else if (root.TryGetProperty("data", out var dataElem))
+                                rawEvents = JsonSerializer.Deserialize<List<ScheduleEvent>>(dataElem.GetRawText());
+                        }
+
+                        if (rawEvents != null && rawEvents.Count > 0)
+                        {
+                            ProcessScheduleData(rawEvents);
+                            StatusText.Text = "";
+                            return;
+                        }
+                        else
+                        {
+                            StatusText.Text = "No events found";
+                            return;
+                        }
+                    }
                 }
-                else if (root.ValueKind == JsonValueKind.Object)
+                catch (Exception ex)
                 {
-                    if (root.TryGetProperty("events", out var eventsElem))
-                        rawEvents = JsonSerializer.Deserialize<List<ScheduleEvent>>(eventsElem.GetRawText());
-                    else if (root.TryGetProperty("data", out var dataElem))
-                        rawEvents = JsonSerializer.Deserialize<List<ScheduleEvent>>(dataElem.GetRawText());
+                    System.Diagnostics.Debug.WriteLine($"Attempt {i + 1} failed: {ex.Message}");
                 }
 
-                if (rawEvents != null && rawEvents.Count > 0)
-                {
-                    ProcessScheduleData(rawEvents);
-                    StatusText.Text = "";
-                }
-                else
-                {
-                    StatusText.Text = "No events found";
-                }
+                if (i < maxRetries - 1) await Task.Delay(delayBetweenRetries);
             }
-            catch (Exception ex)
-            {
-                StatusText.Text = "API Error";
-                System.Diagnostics.Debug.WriteLine(ex.Message);
-            }
+
+            StatusText.Text = "API Error (Check Connection)";
         }
 
         private void ProcessScheduleData(List<ScheduleEvent> schedule)
