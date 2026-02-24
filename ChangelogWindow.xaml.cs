@@ -38,28 +38,23 @@ namespace ARC_Sight
                 if (trimmed.StartsWith("#"))
                 {
                     list = null;
-                    Paragraph p = new Paragraph();
-                    p.Margin = new Thickness(0, 10, 0, 5);
-
-
+                    Paragraph p = new Paragraph { Margin = new Thickness(0, 10, 0, 5) };
                     string cleanHeader = trimmed.TrimStart('#').Trim().Replace("**", "");
 
                     p.Inlines.Add(new Run(cleanHeader)
                     {
-                        Foreground = new SolidColorBrush(Color.FromRgb(255, 85, 0)),
+
+                        Foreground = new SolidColorBrush(System.Windows.Media.Color.FromRgb(255, 85, 0)),
                         FontWeight = FontWeights.Bold,
                         FontSize = 16
                     });
                     doc.Blocks.Add(p);
                 }
-
                 else if (trimmed.StartsWith("* ") || trimmed.StartsWith("- "))
                 {
                     if (list == null)
                     {
-                        list = new List();
-                        list.MarkerStyle = TextMarkerStyle.Disc;
-                        list.Margin = new Thickness(5, 0, 0, 5);
+                        list = new List { MarkerStyle = TextMarkerStyle.Disc, Margin = new Thickness(5, 0, 0, 5) };
                         doc.Blocks.Add(list);
                     }
 
@@ -70,20 +65,14 @@ namespace ARC_Sight
                     li.Blocks.Add(p);
                     list.ListItems.Add(li);
                 }
-
                 else if (!string.IsNullOrWhiteSpace(trimmed))
                 {
                     list = null;
-                    Paragraph p = new Paragraph();
-                    p.Margin = new Thickness(0, 0, 0, 5);
+                    Paragraph p = new Paragraph { Margin = new Thickness(0, 0, 0, 5) };
                     ParseInlineFormatting(p, trimmed);
                     doc.Blocks.Add(p);
                 }
-
-                else
-                {
-                    list = null;
-                }
+                else { list = null; }
             }
         }
 
@@ -97,7 +86,8 @@ namespace ARC_Sight
                 if (part.StartsWith("**") && part.EndsWith("**") && part.Length > 4)
                 {
                     string clean = part.Substring(2, part.Length - 4);
-                    p.Inlines.Add(new Run(clean) { FontWeight = FontWeights.Bold, Foreground = Brushes.White });
+
+                    p.Inlines.Add(new Run(clean) { FontWeight = FontWeights.Bold, Foreground = System.Windows.Media.Brushes.White });
                 }
                 else
                 {
@@ -106,9 +96,6 @@ namespace ARC_Sight
             }
         }
 
-        private void Close_Click(object sender, RoutedEventArgs e)
-        {
-            this.Close();
-        }
+        private void Close_Click(object sender, RoutedEventArgs e) => this.Close();
     }
 }

@@ -17,18 +17,22 @@ using System.Windows.Media.Imaging;
 using System.Windows.Threading;
 using System.Windows.Input;
 using System.Text;
+using System.Text.RegularExpressions;
+using System.Diagnostics;
+using System.Windows.Documents;
 using Velopack;
 using Velopack.Sources;
+using Forms = System.Windows.Forms;
 
 namespace ARC_Sight
 {
     public partial class MainWindow : Window
     {
-        public static string AppVersion { get; } = "1.3.2";
+        public static string AppVersion { get; } = "1.3.3";
 
         private const string NOTE_URL = "https://raw.githubusercontent.com/rodafux/ARC-Sight/refs/heads/Default/msg.ini";
         private const string API_URL = "https://metaforge.app/api/arc-raiders/events-schedule";
-        private const string HEARTBEAT_URL = "https://arc-sight-stats-viewer.onrender.com/ping";
+        private const string HEARTBEAT_URL = "https://arbitrary-gertrudis-rodafux-fe0cc8aa.koyeb.app/ping";
         private const string GITHUB_REPO_URL = "https://github.com/rodafux/ARC-Sight";
         private const string GITHUB_RELEASE_API = "https://api.github.com/repos/rodafux/ARC-Sight/releases/tags/";
 
@@ -42,11 +46,16 @@ namespace ARC_Sight
         private IntPtr _windowHandle;
 
         private static MediaPlayer _mediaPlayer = new MediaPlayer();
-        private Velopack.UpdateInfo? _updateInfo;
+        #if DEBUG
+        #else
+                private Velopack.UpdateInfo? _updateInfo;
+        #endif
         private bool _isWindowLocked = true;
 
         private bool _isDragging = false;
-        private Point _dragOffset;
+        private System.Windows.Point _dragOffset;
+
+        private Forms.NotifyIcon? _notifyIcon;
 
         public ObservableCollection<TabViewModel> Tabs { get; set; } = new ObservableCollection<TabViewModel>();
 
@@ -76,6 +85,56 @@ namespace ARC_Sight
 
             this.MouseMove += MainWindow_MouseMove;
             this.MouseLeftButtonUp += MainWindow_MouseLeftButtonUp;
+        }
+
+        private void SetupSystemTray()
+        {
+            _notifyIcon = new Forms.NotifyIcon();
+            try
+            {
+                string iconPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "assets", "logo.ico");
+
+                if (File.Exists(iconPath))
+                {
+                    _notifyIcon.Icon = new System.Drawing.Icon(iconPath);
+                }
+                else
+                {
+                    var iconStream = System.Windows.Application.GetResourceStream(new Uri("pack://application:,,,/assets/logo.ico")).Stream;
+                    _notifyIcon.Icon = new System.Drawing.Icon(iconStream);
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine("Erreur Icône Tray : " + ex.Message);
+            }
+
+            _notifyIcon.Visible = true;
+            _notifyIcon.Text = "ARC-Sight";
+
+            _notifyIcon.Click += (s, e) => {
+                if (this.Visibility == Visibility.Visible)
+                {
+                    this.Hide();
+                }
+                else
+                {
+                    this.Show();
+                    this.Activate();
+                    this.WindowState = WindowState.Normal;
+                }
+            };
+
+            var contextMenu = new Forms.ContextMenuStrip();
+            contextMenu.Items.Add("Ouvrir", null, (s, e) => { this.Show(); this.Activate(); });
+            contextMenu.Items.Add("Quitter", null, (s, e) => System.Windows.Application.Current.Shutdown());
+            _notifyIcon.ContextMenuStrip = contextMenu;
+        }
+
+        protected override void OnClosed(EventArgs e)
+        {
+            _notifyIcon?.Dispose();
+            base.OnClosed(e);
         }
 
         private void LoadLogoSafe()
@@ -170,7 +229,33 @@ namespace ARC_Sight
                     {
                         string header = GetTrans("note_header", "UI");
                         if (string.IsNullOrEmpty(header)) header = "NOTE IMPORTANTE :";
-                        NoteText.Text = $"{header} {message}";
+
+                        NoteText.Inlines.Clear();
+                        NoteText.Inlines.Add(new System.Windows.Documents.Bold(new System.Windows.Documents.Run(header + " ")));
+
+                        string pattern = @"(https?://[^\s]+)";
+                        string[] parts = Regex.Split(message, pattern);
+
+                        foreach (var part in parts)
+                        {
+                            if (Regex.IsMatch(part, pattern))
+                            {
+                                var link = new Hyperlink(new Run(part))
+                                {
+                                    NavigateUri = new Uri(part),
+                                    Foreground = new SolidColorBrush(System.Windows.Media.Color.FromRgb(0, 240, 255))
+                                };
+                                link.RequestNavigate += (s, e) => {
+                                    try { Process.Start(new ProcessStartInfo(e.Uri.AbsoluteUri) { UseShellExecute = true }); } catch { }
+                                    e.Handled = true;
+                                };
+                                NoteText.Inlines.Add(link);
+                            }
+                            else
+                            {
+                                NoteText.Inlines.Add(new Run(part));
+                            }
+                        }
                         NoteText.Visibility = Visibility.Visible;
                     }
                     else
@@ -207,7 +292,7 @@ namespace ARC_Sight
         private async void UpdateBtn_Click(object sender, RoutedEventArgs e)
         {
 #if DEBUG
-            MessageBox.Show("Update simulation in DEBUG mode.");
+            System.Windows.MessageBox.Show("Update simulation in DEBUG mode.");
 #else
             if (_updateInfo == null) return;
             try
@@ -235,7 +320,7 @@ namespace ARC_Sight
         public static void TriggerNotification(string title, string message)
         {
             if (SoundEnabled) { try { _mediaPlayer.Stop(); _mediaPlayer.Play(); } catch { } }
-            Application.Current.Dispatcher.Invoke(() => { try { new ToastWindow(title, message).Show(); } catch { } });
+            System.Windows.Application.Current.Dispatcher.Invoke(() => { try { new ToastWindow(title, message).Show(); } catch { } });
         }
 
         private async void MainWindow_Loaded(object sender, RoutedEventArgs e)
@@ -262,6 +347,7 @@ namespace ARC_Sight
             await InitialLoad();
             _ = StartHeartbeat();
             _ = CheckForUpdates();
+            SetupSystemTray();
         }
 
         private async Task InitialLoad()
@@ -315,7 +401,7 @@ namespace ARC_Sight
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"Error fetching notes: {ex.Message}");
+                System.Windows.MessageBox.Show($"Error fetching notes: {ex.Message}");
             }
         }
 
@@ -328,7 +414,7 @@ namespace ARC_Sight
 
         private void ListBox_PreviewMouseWheel(object sender, MouseWheelEventArgs e)
         {
-            if (sender is ListBox listBox && e.Delta != 0)
+            if (sender is System.Windows.Controls.ListBox listBox && e.Delta != 0)
             {
                 var scrollViewer = FindVisualChild<ScrollViewer>(listBox);
                 if (scrollViewer != null)
@@ -587,19 +673,21 @@ namespace ARC_Sight
         {
             var dialog = new ConfirmationWindow(GetTrans("exit_confirm_title", "UI"), GetTrans("exit_confirm_msg", "UI"), GetTrans("yes_btn", "UI"), GetTrans("no_btn", "UI"));
             dialog.Owner = this;
-            if (dialog.ShowDialog() == true) Application.Current.Shutdown();
+            if (dialog.ShowDialog() == true) System.Windows.Application.Current.Shutdown();
         }
 
         private void ToggleLock_Click(object sender, RoutedEventArgs e)
         {
             _isWindowLocked = !_isWindowLocked;
             LockBtn.Content = _isWindowLocked ? "🔒" : "🔓";
-            LockBtn.Foreground = _isWindowLocked ? new SolidColorBrush(Color.FromRgb(255, 85, 0)) : Brushes.White;
+            LockBtn.Foreground = _isWindowLocked ? new SolidColorBrush(System.Windows.Media.Color.FromRgb(255, 85, 0)) : System.Windows.Media.Brushes.White;
             this.ResizeMode = _isWindowLocked ? ResizeMode.NoResize : ResizeMode.CanResize;
         }
 
         private void Header_MouseLeftButtonDown(object sender, MouseButtonEventArgs e) { if (!_isWindowLocked) { _isDragging = true; _dragOffset = e.GetPosition(this); this.CaptureMouse(); } }
-        private void MainWindow_MouseMove(object sender, MouseEventArgs e) { if (_isDragging) { var diff = e.GetPosition(this) - _dragOffset; this.Left += diff.X; this.Top += diff.Y; } }
+
+        private void MainWindow_MouseMove(object sender, System.Windows.Input.MouseEventArgs e) { if (_isDragging) { var diff = e.GetPosition(this) - _dragOffset; this.Left += diff.X; this.Top += diff.Y; } }
+
         private void MainWindow_MouseLeftButtonUp(object sender, MouseButtonEventArgs e) { if (_isDragging) { _isDragging = false; this.ReleaseMouseCapture(); } }
     }
 
@@ -661,11 +749,11 @@ namespace ARC_Sight
         private string _localTimeText = "";
         public string LocalTimeText { get => _localTimeText; set { if (_localTimeText != value) { _localTimeText = value; OnPropertyChanged(nameof(LocalTimeText)); } } }
 
-        private Brush _timerColor = Brushes.White;
-        public Brush TimerColor { get => _timerColor; set { if (_timerColor != value) { _timerColor = value; OnPropertyChanged(nameof(TimerColor)); } } }
+        private System.Windows.Media.Brush _timerColor = System.Windows.Media.Brushes.White;
+        public System.Windows.Media.Brush TimerColor { get => _timerColor; set { if (_timerColor != value) { _timerColor = value; OnPropertyChanged(nameof(TimerColor)); } } }
 
-        private Brush _borderColor = Brushes.Transparent;
-        public Brush BorderColor { get => _borderColor; set { if (_borderColor != value) { _borderColor = value; OnPropertyChanged(nameof(BorderColor)); } } }
+        private System.Windows.Media.Brush _borderColor = System.Windows.Media.Brushes.Transparent;
+        public System.Windows.Media.Brush BorderColor { get => _borderColor; set { if (_borderColor != value) { _borderColor = value; OnPropertyChanged(nameof(BorderColor)); } } }
 
         private bool _isAlertEnabled = false;
         public bool IsAlertEnabled { get => _isAlertEnabled; set { _isAlertEnabled = value; OnPropertyChanged(nameof(IsAlertEnabled)); if (!value) HasNotified = false; } }
@@ -681,7 +769,7 @@ namespace ARC_Sight
         public CardViewModel(ScheduleEvent data)
         {
             RawData = data;
-            BorderColor = new SolidColorBrush(Color.FromRgb(60, 60, 60));
+            BorderColor = new SolidColorBrush(System.Windows.Media.Color.FromRgb(60, 60, 60));
             LoadImage();
             UpdateTimer();
         }
@@ -735,8 +823,8 @@ namespace ARC_Sight
                 TargetTime = DateTimeOffset.FromUnixTimeMilliseconds(RawData.endTime).LocalDateTime;
 
                 TimerPrefix = endTxt;
-                TimerColor = Brushes.OrangeRed;
-                BorderColor = Brushes.OrangeRed;
+                TimerColor = System.Windows.Media.Brushes.OrangeRed;
+                BorderColor = System.Windows.Media.Brushes.OrangeRed;
                 IsAlertEnabled = false;
                 LocalTimeText = "";
             }
@@ -755,8 +843,8 @@ namespace ARC_Sight
 
                 if (diff.TotalSeconds <= MainWindow.NotifySeconds && diff.TotalSeconds > 0)
                 {
-                    TimerColor = Brushes.Yellow;
-                    BorderColor = Brushes.Yellow;
+                    TimerColor = System.Windows.Media.Brushes.Yellow;
+                    BorderColor = System.Windows.Media.Brushes.Yellow;
 
                     if (IsAlertEnabled && !HasNotified)
                     {
@@ -773,8 +861,8 @@ namespace ARC_Sight
                 }
                 else
                 {
-                    TimerColor = Brushes.White;
-                    BorderColor = new SolidColorBrush(Color.FromRgb(60, 60, 60));
+                    TimerColor = System.Windows.Media.Brushes.White;
+                    BorderColor = new SolidColorBrush(System.Windows.Media.Color.FromRgb(60, 60, 60));
                     HasNotified = false;
                 }
             }

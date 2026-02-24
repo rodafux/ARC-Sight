@@ -6,7 +6,7 @@ using Velopack.Sources;
 
 namespace ARC_Sight
 {
-    public partial class App : Application
+    public partial class App : System.Windows.Application
     {
         private static Mutex? _mutex;
 
@@ -19,7 +19,7 @@ namespace ARC_Sight
 
             if (!createdNew)
             {
-                Application.Current.Shutdown();
+                System.Windows.Application.Current.Shutdown();
                 return;
             }
 

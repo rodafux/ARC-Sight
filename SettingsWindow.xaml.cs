@@ -77,7 +77,7 @@ namespace ARC_Sight
             }
         }
 
-        private void HotkeyBox_KeyDown(object sender, KeyEventArgs e)
+        private void HotkeyBox_KeyDown(object sender, System.Windows.Input.KeyEventArgs e)
         {
             e.Handled = true;
             Key k = (e.Key == Key.System ? e.SystemKey : e.Key);
@@ -87,8 +87,7 @@ namespace ARC_Sight
 
         private async void PatchNotes_Click(object sender, RoutedEventArgs e)
         {
-
-            if (Application.Current.MainWindow is MainWindow mw)
+            if (System.Windows.Application.Current.MainWindow is MainWindow mw)
             {
                 await mw.FetchAndShowChangelogData(MainWindow.AppVersion);
             }

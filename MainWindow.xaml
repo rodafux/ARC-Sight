@@ -3,7 +3,10 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="ARC-Sight" Height="370" MinHeight="320" MinWidth="700"
         WindowStyle="None" AllowsTransparency="True" Background="Transparent"
-        Topmost="True" ShowInTaskbar="False" ResizeMode="NoResize"
+        Topmost="True" 
+        ShowInTaskbar="False" 
+        Icon="pack://application:,,,/assets/logo.png"
+        ResizeMode="NoResize"
         HorizontalAlignment="Left" VerticalAlignment="Top">
 
     <WindowChrome.WindowChrome>
@@ -16,7 +19,7 @@
                 <Setter.Value>
                     <ControlTemplate TargetType="TabItem">
                         <Grid>
-                            <Border x:Name="Border" Padding="15,5" Margin="0,0,5,0" BorderThickness="0,0,0,2" BorderBrush="Transparent">
+                            <Border x:Name="Border" Padding="15,5,7,5" Margin="0,0,5,0" BorderThickness="0,0,0,2" BorderBrush="Transparent">
                                 <ContentPresenter ContentSource="Header" TextElement.Foreground="White" TextElement.FontWeight="Bold" TextElement.FontFamily="Segoe UI"/>
                             </Border>
                         </Grid>
@@ -129,7 +132,7 @@
                 <StackPanel Orientation="Horizontal" Margin="20,0">
                     <Image Source="{Binding AppLogo}" Height="40" VerticalAlignment="Center" Margin="0,0,15,0" RenderOptions.BitmapScalingMode="HighQuality"/>
 
-                    <TextBlock Text="ARC-SIGHT" Foreground="#ff5500" FontWeight="Bold" VerticalAlignment="Center" FontSize="18"/>
+                    <TextBlock Text="ARC-SIGHT" Foreground="#ffffff" FontWeight="Bold" VerticalAlignment="Center" FontSize="18"/>
 
                     <TextBlock Text="{Binding AppVersion}" Foreground="#666" VerticalAlignment="Bottom" FontSize="11" Margin="5,0,0,18" FontWeight="SemiBold"/>
 
