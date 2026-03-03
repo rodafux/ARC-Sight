@@ -1,4 +1,6 @@
-﻿using System;
+﻿#pragma warning disable CA1416
+
+using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
@@ -28,7 +30,7 @@ namespace ARC_Sight
 {
     public partial class MainWindow : Window
     {
-        public static string AppVersion { get; } = "1.3.4";
+        public static string AppVersion { get; } = "1.4.0";
 
         private const string NOTE_URL = "https://raw.githubusercontent.com/rodafux/ARC-Sight/refs/heads/Default/msg.ini";
         private const string API_URL = "https://metaforge.app/api/arc-raiders/events-schedule";
@@ -37,6 +39,7 @@ namespace ARC_Sight
         private const string GITHUB_RELEASE_API = "https://api.github.com/repos/rodafux/ARC-Sight/releases/tags/";
         private const string LANG_BASE_URL = "https://raw.githubusercontent.com/rodafux/ARC-Sight/Default/languages/";
         private const string LANG_LIST_API = "https://api.github.com/repos/rodafux/ARC-Sight/contents/languages?ref=Default";
+        private const string TWITCH_LIVE_URL = "https://arbitrary-gertrudis-rodafux-fe0cc8aa.koyeb.app/live-streamers";
 
         public static string AppDataPath { get; } = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "ARC-Sight");
         public static string ConfigFile { get; } = Path.Combine(AppDataPath, "config.ini");
@@ -48,6 +51,8 @@ namespace ARC_Sight
         private IntPtr _windowHandle;
 
         private static MediaPlayer _mediaPlayer = new MediaPlayer();
+        private TwitchPlayerWindow? _currentPlayerWindow = null;
+        private List<TwitchStreamer> _currentStreamers = new List<TwitchStreamer>();
 
 #if DEBUG
 #else
@@ -69,6 +74,7 @@ namespace ARC_Sight
         public static string CurrentLanguage { get; set; } = "en";
         public static string LastSeenVersion { get; set; } = "v0.0.0";
         public static string CurrentLanguageAuthor { get; set; } = "Unknown";
+        public static string TwitchUser { get; set; } = "";
 
         public static readonly Dictionary<string, string> Translations = new Dictionary<string, string>();
 
@@ -144,6 +150,12 @@ namespace ARC_Sight
                     {
                         ParseLanguageContent(content);
                         UpdateLocalizedUI();
+                        try
+                        {
+                            Directory.CreateDirectory(LanguagesDir);
+                            File.WriteAllText(Path.Combine(LanguagesDir, $"lang_{CurrentLanguage}.ini"), content, Encoding.UTF8);
+                        }
+                        catch { }
                     }
                 }
             }
@@ -242,7 +254,7 @@ namespace ARC_Sight
             {
                 try
                 {
-                    var req = new HttpRequestMessage(HttpMethod.Post, HEARTBEAT_URL) { Content = new StringContent(JsonSerializer.Serialize(new { version = AppVersion }), Encoding.UTF8, "application/json") };
+                    var req = new HttpRequestMessage(HttpMethod.Post, HEARTBEAT_URL) { Content = new StringContent(JsonSerializer.Serialize(new { version = AppVersion, twitch_user = TwitchUser }), Encoding.UTF8, "application/json") };
                     req.Headers.Add("User-Agent", "ARC-Sight-Desktop-Client/1.0");
                     await _client.SendAsync(req);
                 }
@@ -263,7 +275,7 @@ namespace ARC_Sight
                     if (!string.IsNullOrWhiteSpace(message))
                     {
                         string header = GetTrans("note_header", "UI");
-                        if (string.IsNullOrEmpty(header)) header = "NOTE IMPORTANTE :";
+                        if (string.IsNullOrEmpty(header) || header == "NOTE_HEADER") header = "NOTE IMPORTANTE :";
                         NoteText.Inlines.Clear();
                         NoteText.Inlines.Add(new Bold(new Run(header + " ")));
                         string pattern = @"(https?://[^\s]+)";
@@ -293,7 +305,7 @@ namespace ARC_Sight
 #else
                 var mgr = new UpdateManager(new GithubSource(GITHUB_REPO_URL, null, false));
                 var newVersion = await mgr.CheckForUpdatesAsync();
-                if (newVersion != null) { _updateInfo = newVersion; this.Dispatcher.Invoke(() => { UpdateBtn.Content = GetTrans("update_available_button", "UI"); UpdateBtn.Visibility = Visibility.Visible; }); }
+                if (newVersion != null) { _updateInfo = newVersion; this.Dispatcher.Invoke(() => { string txt = GetTrans("update_available_button", "UI"); UpdateBtn.Content = string.IsNullOrEmpty(txt) || txt == "UPDATE_AVAILABLE_BUTTON" ? "UPDATE" : txt; UpdateBtn.Visibility = Visibility.Visible; }); }
 #endif
             }
             catch { }
@@ -302,7 +314,6 @@ namespace ARC_Sight
         private async void UpdateBtn_Click(object sender, RoutedEventArgs e)
         {
 #if DEBUG
-            System.Windows.MessageBox.Show("Update simulation in DEBUG mode.");
 #else
             if (_updateInfo == null) return;
             try {
@@ -310,8 +321,78 @@ namespace ARC_Sight
                 var mgr = new UpdateManager(new GithubSource(GITHUB_REPO_URL, null, false));
                 await mgr.DownloadUpdatesAsync(_updateInfo, p => this.Dispatcher.Invoke(() => UpdateProgressBar.Value = p));
                 mgr.ApplyUpdatesAndRestart(_updateInfo);
-            } catch { UpdateBtn.Content = GetTrans("update_error", "UI"); UpdateBtn.IsEnabled = true; UpdateBtn.Visibility = Visibility.Visible; UpdateProgressPanel.Visibility = Visibility.Collapsed; }
+            } catch { string err = GetTrans("update_error", "UI"); UpdateBtn.Content = string.IsNullOrEmpty(err) || err == "UPDATE_ERROR" ? "ERROR" : err; UpdateBtn.IsEnabled = true; UpdateBtn.Visibility = Visibility.Visible; UpdateProgressPanel.Visibility = Visibility.Collapsed; }
 #endif
+        }
+
+        private async void ToggleTwitch_Click(object sender, RoutedEventArgs e)
+        {
+            if (MainTabControl.Visibility == Visibility.Visible)
+            {
+                MainTabControl.Visibility = Visibility.Collapsed;
+                TwitchPanel.Visibility = Visibility.Visible;
+                await FetchTwitchStreams();
+            }
+            else
+            {
+                BackToTimers_Click(sender, e);
+            }
+        }
+
+        private async void RefreshTwitch_Click(object sender, RoutedEventArgs e)
+        {
+            await FetchTwitchStreams();
+        }
+
+        private async Task FetchTwitchStreams()
+        {
+            try
+            {
+                var content = await _client.GetStringAsync($"{TWITCH_LIVE_URL}?t={DateTime.UtcNow.Ticks}");
+                var liveStreamers = JsonSerializer.Deserialize<List<TwitchStreamer>>(content, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+
+                if (liveStreamers != null && liveStreamers.Count > 0)
+                {
+                    _currentStreamers = liveStreamers.OrderByDescending(x => x.ViewerCount).ToList();
+                    TwitchItemsControl.ItemsSource = _currentStreamers;
+                }
+                else
+                {
+                    _currentStreamers.Clear();
+                    TwitchItemsControl.ItemsSource = null;
+                }
+            }
+            catch
+            {
+                _currentStreamers.Clear();
+                TwitchItemsControl.ItemsSource = null;
+            }
+        }
+
+        private void SortViewersAsc_Click(object sender, RoutedEventArgs e)
+        {
+            if (_currentStreamers.Any()) TwitchItemsControl.ItemsSource = _currentStreamers.OrderBy(x => x.ViewerCount).ToList();
+        }
+
+        private void SortViewersDesc_Click(object sender, RoutedEventArgs e)
+        {
+            if (_currentStreamers.Any()) TwitchItemsControl.ItemsSource = _currentStreamers.OrderByDescending(x => x.ViewerCount).ToList();
+        }
+
+        private void BackToTimers_Click(object sender, RoutedEventArgs e)
+        {
+            MainTabControl.Visibility = Visibility.Visible;
+            TwitchPanel.Visibility = Visibility.Collapsed;
+        }
+
+        private void TwitchCard_Click(object sender, MouseButtonEventArgs e)
+        {
+            if (sender is Border border && border.DataContext is TwitchStreamer streamer)
+            {
+                if (_currentPlayerWindow != null) _currentPlayerWindow.Close();
+                _currentPlayerWindow = new TwitchPlayerWindow(streamer.StreamerName) { Owner = this };
+                _currentPlayerWindow.Show();
+            }
         }
 
         public static void TriggerNotification(string title, string message)
@@ -323,6 +404,10 @@ namespace ARC_Sight
         private async void MainWindow_Loaded(object sender, RoutedEventArgs e)
         {
             this.Left = 0; this.Top = 0; this.Width = SystemParameters.PrimaryScreenWidth;
+
+            string initTxt = GetTrans("status_initializing", "UI");
+            StatusText.Text = string.IsNullOrEmpty(initTxt) || initTxt == "STATUS_INITIALIZING" ? "Initializing..." : initTxt;
+
             UpdateLocalizedUI();
             _windowHandle = new WindowInteropHelper(this).Handle;
             SetWindowLong(_windowHandle, -16, GetWindowLong(_windowHandle, -16) & ~0x10000);
@@ -336,20 +421,69 @@ namespace ARC_Sight
             _ = StartHeartbeat(); _ = CheckForUpdates(); SetupSystemTray();
         }
 
-        private async Task InitialLoad() { StatusText.Text = "Initializing..."; await Task.Delay(1000); await UpdateLanguageFromServerAsync(); await FetchData(); await FetchNote(); await CheckAndShowChangelog(); }
+        private async Task InitialLoad() { await Task.Delay(1000); await UpdateLanguageFromServerAsync(); await FetchData(); await FetchNote(); await CheckAndShowChangelog(); }
         private async Task CheckAndShowChangelog() { if (AppVersion != LastSeenVersion) { await FetchAndShowChangelogData(AppVersion); LastSeenVersion = AppVersion; SaveConfig(); } }
         public async Task FetchAndShowChangelogData(string tag) { try { var req = new HttpRequestMessage(HttpMethod.Get, $"{GITHUB_RELEASE_API}{tag}"); req.Headers.Add("User-Agent", "ARC-Sight-App"); var res = await _client.SendAsync(req); string notes = "No details available."; if (res.IsSuccessStatusCode) { using (JsonDocument doc = JsonDocument.Parse(await res.Content.ReadAsStringAsync())) if (doc.RootElement.TryGetProperty("body", out var body)) notes = body.GetString() ?? "No content."; } new ChangelogWindow(notes) { Owner = this }.ShowDialog(); } catch { } }
-        private void UpdateLocalizedUI() { string t = GetTrans("lock_tooltip", "UI"); if (LockBtn != null) LockBtn.ToolTip = string.IsNullOrEmpty(t) ? "Lock / Unlock window position" : t; }
+
+        private void UpdateLocalizedUI()
+        {
+            string t = GetTrans("lock_tooltip", "UI");
+            if (LockBtn != null) LockBtn.ToolTip = string.IsNullOrEmpty(t) || t == "LOCK_TOOLTIP" ? "Lock / Unlock window position" : t;
+
+            if (DownloadingText != null)
+            {
+                string dl = GetTrans("update_downloading", "UI");
+                DownloadingText.Text = string.IsNullOrEmpty(dl) || dl == "UPDATE_DOWNLOADING" ? "Downloading..." : dl;
+            }
+
+            if (BackToEventsBtn != null)
+            {
+                string back = GetTrans("back_to_events_button", "UI");
+                BackToEventsBtn.Content = string.IsNullOrEmpty(back) || back == "BACK_TO_EVENTS_BUTTON" ? "← Retour aux évènements" : back;
+            }
+
+            if (SortAscBtn != null)
+            {
+                string asc = GetTrans("sort_viewers_asc", "UI");
+                SortAscBtn.Content = string.IsNullOrEmpty(asc) || asc == "SORT_VIEWERS_ASC" ? "Trier: Viewers ▲" : asc;
+            }
+
+            if (SortDescBtn != null)
+            {
+                string desc = GetTrans("sort_viewers_desc", "UI");
+                SortDescBtn.Content = string.IsNullOrEmpty(desc) || desc == "SORT_VIEWERS_DESC" ? "Trier: Viewers ▼" : desc;
+            }
+
+            if (UpdateBtn != null && UpdateBtn.Visibility == Visibility.Visible)
+            {
+                string upd = GetTrans("update_available_button", "UI");
+                UpdateBtn.Content = string.IsNullOrEmpty(upd) || upd == "UPDATE_AVAILABLE_BUTTON" ? "UPDATE AVAILABLE" : upd;
+            }
+
+            if (TwitchItemsControl != null && TwitchItemsControl.ItemsSource != null)
+            {
+                ICollectionView view = CollectionViewSource.GetDefaultView(TwitchItemsControl.ItemsSource);
+                view?.Refresh();
+            }
+        }
+
         private void ListBox_PreviewMouseWheel(object s, MouseWheelEventArgs e) { if (s is System.Windows.Controls.ListBox lb && e.Delta != 0) { var sv = FindVisualChild<ScrollViewer>(lb); if (sv != null) { for (int i = 0; i < 40; i++) if (e.Delta > 0) sv.LineLeft(); else sv.LineRight(); e.Handled = true; } } }
         private static T? FindVisualChild<T>(DependencyObject p) where T : DependencyObject { if (p == null) return null; for (int i = 0; i < VisualTreeHelper.GetChildrenCount(p); i++) { var c = VisualTreeHelper.GetChild(p, i); if (c is T t) return t; var r = FindVisualChild<T>(c); if (r != null) return r; } return null; }
 
         private async Task FetchData()
         {
+            string updTxt = GetTrans("status_updating", "UI");
+            if (string.IsNullOrEmpty(updTxt) || updTxt == "STATUS_UPDATING") updTxt = "Updating...";
+            string retTxt = GetTrans("status_retrying", "UI");
+            if (string.IsNullOrEmpty(retTxt) || retTxt == "STATUS_RETRYING") retTxt = "Retrying ({0}/3)...";
+            string errTxt = GetTrans("status_api_error", "UI");
+            if (string.IsNullOrEmpty(errTxt) || errTxt == "STATUS_API_ERROR") errTxt = "API Error";
+
             for (int i = 0; i < 3; i++)
             {
                 try
                 {
-                    StatusText.Text = i == 0 ? "Updating..." : $"Retrying ({i}/3)...";
+                    StatusText.Text = i == 0 ? updTxt : string.Format(retTxt, i);
                     if (!_client.DefaultRequestHeaders.UserAgent.Any()) _client.DefaultRequestHeaders.UserAgent.ParseAdd("ARC-Sight/1.0");
                     var res = await _client.GetAsync(API_URL);
                     if (res.IsSuccessStatusCode)
@@ -362,7 +496,7 @@ namespace ARC_Sight
                 }
                 catch { if (i < 2) await Task.Delay(2000); }
             }
-            StatusText.Text = "API Error";
+            StatusText.Text = errTxt;
         }
 
         private void ProcessScheduleData(List<ScheduleEvent> s) { var now = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(); UpdateUiWithProcessedData(s.GroupBy(e => new { e.name, e.map }).Select(g => new EventDisplayData(g.FirstOrDefault(e => e.startTime <= now && e.endTime > now) ?? g.Where(e => e.startTime > now).OrderBy(e => e.startTime).FirstOrDefault()!)).Where(d => d.Raw != null).ToList()); }
@@ -370,21 +504,113 @@ namespace ARC_Sight
         private void MergeCards(ObservableCollection<CardViewModel> coll, List<EventDisplayData> evts) { for (int i = coll.Count - 1; i >= 0; i--) if (!evts.Any(e => e.Raw.name == coll[i].RawData.name && e.Raw.map == coll[i].RawData.map)) coll.RemoveAt(i); foreach (var e in evts) { var ex = coll.FirstOrDefault(c => c.RawData.name == e.Raw.name && c.RawData.map == e.Raw.map); if (ex != null) ex.UpdateData(e.Raw); else { var n = new CardViewModel(e.Raw); n.RequestNotification += TriggerNotification; coll.Add(n); } } }
         private void UpdateAllTimers() { foreach (var t in Tabs) foreach (var c in t.Cards) c.UpdateTimer(); }
         public static string GetTrans(string k, string s) { if (string.IsNullOrEmpty(k)) return ""; string key = k.Replace(" ", "_").ToLower().Trim(); return Translations.ContainsKey(key) ? Translations[key] : k.ToUpper(); }
-        private void LoadConfig() { if (File.Exists(ConfigFile)) foreach (var l in File.ReadAllLines(ConfigFile)) { var p = l.Split('='); if (p.Length < 2) continue; if (l.StartsWith("hotkey=")) Hotkey = p[1]; if (l.StartsWith("language=")) CurrentLanguage = p[1]; if (l.StartsWith("notify_minutes=") && int.TryParse(p[1], out int m)) NotifySeconds = m * 60; if (l.StartsWith("sound_enabled=") && bool.TryParse(p[1], out bool s)) SoundEnabled = s; if (l.StartsWith("show_local_time=") && bool.TryParse(p[1], out bool sl)) ShowLocalTime = sl; if (l.StartsWith("last_seen_version=")) LastSeenVersion = p[1]; } }
-        public static void SaveConfig() { try { Directory.CreateDirectory(AppDataPath); File.WriteAllLines(ConfigFile, new[] { $"hotkey={Hotkey}", $"notify_minutes={NotifySeconds / 60}", $"language={CurrentLanguage}", $"sound_enabled={SoundEnabled}", $"show_local_time={ShowLocalTime}", $"last_seen_version={LastSeenVersion}" }); } catch { } }
+        private void LoadConfig() { if (File.Exists(ConfigFile)) foreach (var l in File.ReadAllLines(ConfigFile)) { var p = l.Split('='); if (p.Length < 2) continue; if (l.StartsWith("hotkey=")) Hotkey = p[1]; if (l.StartsWith("language=")) CurrentLanguage = p[1]; if (l.StartsWith("notify_minutes=") && int.TryParse(p[1], out int m)) NotifySeconds = m * 60; if (l.StartsWith("sound_enabled=") && bool.TryParse(p[1], out bool s)) SoundEnabled = s; if (l.StartsWith("show_local_time=") && bool.TryParse(p[1], out bool sl)) ShowLocalTime = sl; if (l.StartsWith("last_seen_version=")) LastSeenVersion = p[1]; if (l.StartsWith("twitch_user=")) TwitchUser = p[1]; } }
+        public static void SaveConfig() { try { Directory.CreateDirectory(AppDataPath); File.WriteAllLines(ConfigFile, new[] { $"hotkey={Hotkey}", $"notify_minutes={NotifySeconds / 60}", $"language={CurrentLanguage}", $"sound_enabled={SoundEnabled}", $"show_local_time={ShowLocalTime}", $"last_seen_version={LastSeenVersion}", $"twitch_user={TwitchUser}" }); } catch { } }
 
         [DllImport("user32.dll")] private static extern bool RegisterHotKey(IntPtr h, int i, uint f, uint v);
         [DllImport("user32.dll")] private static extern bool UnregisterHotKey(IntPtr h, int i);
         [DllImport("user32.dll")] private static extern int GetWindowLong(IntPtr h, int n);
         [DllImport("user32.dll")] private static extern int SetWindowLong(IntPtr h, int n, int l);
-        private IntPtr HwndHook(IntPtr h, int m, IntPtr w, IntPtr l, ref bool handled) { if (m == 0x0312 && w.ToInt32() == 1) { if (Visibility == Visibility.Visible) Hide(); else { Show(); Activate(); } handled = true; } return IntPtr.Zero; }
+
+        private IntPtr HwndHook(IntPtr h, int m, IntPtr w, IntPtr l, ref bool handled)
+        {
+            if (m == 0x0312 && w.ToInt32() == 1)
+            {
+                if (Visibility == Visibility.Visible)
+                {
+                    Hide();
+                    if (_currentPlayerWindow != null && !_currentPlayerWindow.IsLocked) _currentPlayerWindow.Hide();
+                }
+                else
+                {
+                    Show();
+                    Activate();
+                    if (_currentPlayerWindow != null) _currentPlayerWindow.Show();
+                }
+                handled = true;
+            }
+            return IntPtr.Zero;
+        }
+
         public static uint GetVkCode(string k) { if (string.IsNullOrEmpty(k)) return 0x78; if (k.StartsWith("F") && int.TryParse(k.Substring(1), out int n)) return (uint)(0x70 + n - 1); return (uint)k.ToUpper()[0]; }
-        private void OpenSettings_Click(object s, RoutedEventArgs e) { if (new SettingsWindow { Owner = this }.ShowDialog() == true) { UnregisterHotKey(_windowHandle, 1); RegisterHotKey(_windowHandle, 1, 0, GetVkCode(Hotkey)); Tabs.Clear(); _ = InitialLoad(); UpdateLocalizedUI(); } }
-        private void CloseButton_Click(object s, RoutedEventArgs e) { if (new ConfirmationWindow(GetTrans("exit_confirm_title", "UI"), GetTrans("exit_confirm_msg", "UI"), GetTrans("yes_btn", "UI"), GetTrans("no_btn", "UI")) { Owner = this }.ShowDialog() == true) System.Windows.Application.Current.Shutdown(); }
-        private void ToggleLock_Click(object s, RoutedEventArgs e) { _isWindowLocked = !_isWindowLocked; LockBtn.Content = _isWindowLocked ? "🔒" : "🔓"; LockBtn.Foreground = _isWindowLocked ? new SolidColorBrush(System.Windows.Media.Color.FromRgb(255, 85, 0)) : System.Windows.Media.Brushes.White; this.ResizeMode = _isWindowLocked ? ResizeMode.NoResize : ResizeMode.CanResize; }
-        private void Header_MouseLeftButtonDown(object s, MouseButtonEventArgs e) { if (!_isWindowLocked) { _isDragging = true; _dragOffset = e.GetPosition(this); this.CaptureMouse(); } }
-        private void MainWindow_MouseMove(object s, System.Windows.Input.MouseEventArgs e) { if (_isDragging) { var d = e.GetPosition(this) - _dragOffset; this.Left += d.X; this.Top += d.Y; } }
-        private void MainWindow_MouseLeftButtonUp(object s, MouseButtonEventArgs e) { if (_isDragging) { _isDragging = false; this.ReleaseMouseCapture(); } }
+
+        private void OpenSettings_Click(object s, RoutedEventArgs e)
+        {
+            if (new SettingsWindow { Owner = this }.ShowDialog() == true)
+            {
+                UnregisterHotKey(_windowHandle, 1);
+                RegisterHotKey(_windowHandle, 1, 0, GetVkCode(Hotkey));
+                Tabs.Clear();
+                _ = InitialLoad();
+                UpdateLocalizedUI();
+            }
+        }
+
+        private void CloseButton_Click(object s, RoutedEventArgs e)
+        {
+            string title = GetTrans("exit_confirm_title", "UI"); if (string.IsNullOrEmpty(title) || title == "EXIT_CONFIRM_TITLE") title = "Confirmation";
+            string msg = GetTrans("exit_confirm_msg", "UI"); if (string.IsNullOrEmpty(msg) || msg == "EXIT_CONFIRM_MSG") msg = "Are you sure you want to close the application?";
+            string yes = GetTrans("yes_btn", "UI"); if (string.IsNullOrEmpty(yes) || yes == "YES_BTN") yes = "Yes";
+            string no = GetTrans("no_btn", "UI"); if (string.IsNullOrEmpty(no) || no == "NO_BTN") no = "No";
+
+            if (new ConfirmationWindow(title, msg, yes, no) { Owner = this }.ShowDialog() == true)
+                System.Windows.Application.Current.Shutdown();
+        }
+
+        private void ToggleLock_Click(object s, RoutedEventArgs e)
+        {
+            _isWindowLocked = !_isWindowLocked;
+            LockBtn.Content = _isWindowLocked ? "🔒" : "🔓";
+            LockBtn.Foreground = _isWindowLocked ? new SolidColorBrush(System.Windows.Media.Color.FromRgb(255, 85, 0)) : System.Windows.Media.Brushes.White;
+            this.ResizeMode = _isWindowLocked ? ResizeMode.NoResize : ResizeMode.CanResize;
+        }
+
+        private void Header_MouseLeftButtonDown(object s, MouseButtonEventArgs e)
+        {
+            if (!_isWindowLocked)
+            {
+                _isDragging = true;
+                _dragOffset = e.GetPosition(this);
+                this.CaptureMouse();
+            }
+        }
+
+        private void MainWindow_MouseMove(object s, System.Windows.Input.MouseEventArgs e)
+        {
+            if (_isDragging)
+            {
+                var d = e.GetPosition(this) - _dragOffset;
+                this.Left += d.X;
+                this.Top += d.Y;
+            }
+        }
+
+        private void MainWindow_MouseLeftButtonUp(object s, MouseButtonEventArgs e)
+        {
+            if (_isDragging)
+            {
+                _isDragging = false;
+                this.ReleaseMouseCapture();
+            }
+        }
+    }
+
+    public class TwitchStreamer
+    {
+        public string StreamerName { get; set; } = "";
+        public string ThumbnailUrl { get; set; } = "";
+        public string StreamTitle { get; set; } = "";
+        public int ViewerCount { get; set; } = 0;
+
+        public string ViewerCountText
+        {
+            get
+            {
+                string fmt = MainWindow.GetTrans("viewers_format", "UI");
+                if (string.IsNullOrEmpty(fmt) || fmt == "VIEWERS_FORMAT") fmt = "{0} viewers";
+                return string.Format(fmt, ViewerCount);
+            }
+        }
     }
 
     public class ScheduleEvent { public string? name { get; set; } public string? map { get; set; } public string? icon { get; set; } public long startTime { get; set; } public long endTime { get; set; } }
@@ -423,8 +649,8 @@ namespace ARC_Sight
             long now = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
             bool active = (now >= RawData.startTime && now < RawData.endTime);
             IsActive = active; AlertVisibility = active ? Visibility.Collapsed : Visibility.Visible;
-            string sTxt = MainWindow.GetTrans("timer_start_prefix", "UI"); if (sTxt == "TIMER_START_PREFIX") sTxt = "STARTS IN";
-            string eTxt = MainWindow.GetTrans("timer_end_prefix", "UI"); if (eTxt == "TIMER_END_PREFIX") eTxt = "ENDS IN";
+            string sTxt = MainWindow.GetTrans("timer_start_prefix", "UI"); if (string.IsNullOrEmpty(sTxt) || sTxt == "TIMER_START_PREFIX") sTxt = "STARTS IN";
+            string eTxt = MainWindow.GetTrans("timer_end_prefix", "UI"); if (string.IsNullOrEmpty(eTxt) || eTxt == "TIMER_END_PREFIX") eTxt = "ENDS IN";
             TimeSpan diff;
             if (active) { diff = TimeSpan.FromMilliseconds(RawData.endTime - now); TargetTime = DateTimeOffset.FromUnixTimeMilliseconds(RawData.endTime).LocalDateTime; TimerPrefix = eTxt; TimerColor = System.Windows.Media.Brushes.OrangeRed; BorderColor = System.Windows.Media.Brushes.OrangeRed; IsAlertEnabled = false; LocalTimeText = ""; }
             else

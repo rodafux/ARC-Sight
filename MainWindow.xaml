@@ -3,11 +3,8 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="ARC-Sight" Height="370" MinHeight="320" MinWidth="700"
         WindowStyle="None" AllowsTransparency="True" Background="Transparent"
-        Topmost="True" 
-        ShowInTaskbar="False" 
-        Icon="pack://application:,,,/assets/logo.png"
-        ResizeMode="NoResize"
-        HorizontalAlignment="Left" VerticalAlignment="Top">
+        Topmost="True" ShowInTaskbar="False" Icon="pack://application:,,,/assets/logo.png"
+        ResizeMode="NoResize" HorizontalAlignment="Left" VerticalAlignment="Top">
 
     <WindowChrome.WindowChrome>
         <WindowChrome CaptionHeight="0" ResizeBorderThickness="5" GlassFrameThickness="0" CornerRadius="0"/>
@@ -105,20 +102,12 @@
                             </Grid.RowDefinitions>
                             <ScrollContentPresenter x:Name="PART_ScrollContentPresenter" CanContentScroll="{TemplateBinding CanContentScroll}" ContentTemplate="{TemplateBinding ContentTemplate}" Content="{TemplateBinding Content}" Grid.Column="0" Margin="{TemplateBinding Padding}" Grid.Row="0"/>
                             <ScrollBar x:Name="PART_VerticalScrollBar" Visibility="Collapsed" Grid.Column="1" Grid.Row="0"/>
-                            <ScrollBar x:Name="PART_HorizontalScrollBar" Grid.Column="0" Grid.Row="1" 
-                                   Maximum="{TemplateBinding ScrollableWidth}" 
-                                   Orientation="Horizontal"
-                                   Visibility="{TemplateBinding ComputedHorizontalScrollBarVisibility}" 
-                                   Value="{Binding HorizontalOffset, Mode=OneWay, RelativeSource={RelativeSource TemplatedParent}}" 
-                                   ViewportSize="{TemplateBinding ViewportWidth}" 
-                                   Style="{StaticResource ModernScrollBar}" 
-                                   Height="10"/>
+                            <ScrollBar x:Name="PART_HorizontalScrollBar" Grid.Column="0" Grid.Row="1" Maximum="{TemplateBinding ScrollableWidth}" Orientation="Horizontal" Visibility="{TemplateBinding ComputedHorizontalScrollBarVisibility}" Value="{Binding HorizontalOffset, Mode=OneWay, RelativeSource={RelativeSource TemplatedParent}}" ViewportSize="{TemplateBinding ViewportWidth}" Style="{StaticResource ModernScrollBar}" Height="10"/>
                         </Grid>
                     </ControlTemplate>
                 </Setter.Value>
             </Setter>
         </Style>
-
     </Window.Resources>
 
     <Border Background="#CC0C0C0C" CornerRadius="0,0,10,10" BorderBrush="#444" BorderThickness="0,0,0,1">
@@ -131,45 +120,37 @@
             <Grid Grid.Row="0" Background="#DD111111" MouseLeftButtonDown="Header_MouseLeftButtonDown">
                 <StackPanel Orientation="Horizontal" Margin="20,0">
                     <Image Source="{Binding AppLogo}" Height="40" VerticalAlignment="Center" Margin="0,0,15,0" RenderOptions.BitmapScalingMode="HighQuality"/>
-
                     <TextBlock Text="ARC-SIGHT" Foreground="#ffffff" FontWeight="Bold" VerticalAlignment="Center" FontSize="18"/>
-
                     <TextBlock Text="{Binding AppVersion}" Foreground="#666" VerticalAlignment="Bottom" FontSize="11" Margin="5,0,0,18" FontWeight="SemiBold"/>
-
                     <TextBlock x:Name="StatusText" Text="" Foreground="#888" VerticalAlignment="Center" Margin="15,0,0,0" FontSize="12"/>
-
                     <TextBlock x:Name="NoteText" Text="" Foreground="#ff5500" FontWeight="Bold" VerticalAlignment="Center" Margin="20,0,0,0" FontSize="12"/>
                 </StackPanel>
 
                 <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,0,20,0">
-
                     <Grid VerticalAlignment="Center" Margin="0,0,10,0">
-                        <Button x:Name="UpdateBtn" Content="UPDATE" Click="UpdateBtn_Click" 
-                            Visibility="Collapsed"
-                            MinWidth="80" Width="Auto" Height="30" Padding="10,0"
-                            Background="#ff5500" Foreground="Black" FontWeight="Bold" 
-                            Cursor="Hand" FontSize="12" BorderThickness="0">
+                        <Button x:Name="UpdateBtn" Content="UPDATE" Click="UpdateBtn_Click" Visibility="Collapsed" MinWidth="80" Width="Auto" Height="30" Padding="10,0" Background="#ff5500" Foreground="Black" FontWeight="Bold" Cursor="Hand" FontSize="12" BorderThickness="0">
                             <Button.Resources>
                                 <Style TargetType="Border">
                                     <Setter Property="CornerRadius" Value="4"/>
                                 </Style>
                             </Button.Resources>
                         </Button>
-
                         <Grid x:Name="UpdateProgressPanel" Visibility="Collapsed" Width="100" Height="30">
                             <Grid.RowDefinitions>
                                 <RowDefinition Height="*"/>
                                 <RowDefinition Height="Auto"/>
                             </Grid.RowDefinitions>
-                            <TextBlock Text="Downloading..." Foreground="#ff5500" FontSize="10" HorizontalAlignment="Center" VerticalAlignment="Center" Margin="0,0,0,2"/>
+                            <TextBlock x:Name="DownloadingText" Text="Downloading..." Foreground="#ff5500" FontSize="10" HorizontalAlignment="Center" VerticalAlignment="Center" Margin="0,0,0,2"/>
                             <ProgressBar x:Name="UpdateProgressBar" Grid.Row="1" Height="4" Minimum="0" Maximum="100" Value="0" Background="#333" Foreground="#ff5500" BorderThickness="0"/>
                         </Grid>
                     </Grid>
 
+                    <Button x:Name="TwitchBtn" Click="ToggleTwitch_Click" Width="40" Height="40" Background="Transparent" BorderThickness="0" Cursor="Hand" Margin="0,0,5,0">
+                        <Image Source="pack://application:,,,/assets/twitch.png" Width="22" Height="22" RenderOptions.BitmapScalingMode="HighQuality"/>
+                    </Button>
+
                     <Button Content="⚙" Click="OpenSettings_Click" Width="40" Height="40" Background="Transparent" Foreground="White" BorderThickness="0" FontSize="20" Cursor="Hand"/>
-
                     <Button x:Name="LockBtn" Content="🔒" Click="ToggleLock_Click" Width="40" Height="40" Background="Transparent" Foreground="#ff5500" BorderThickness="0" FontSize="18" Cursor="Hand"/>
-
                     <Button Content="✕" Click="CloseButton_Click" Width="40" Height="40" Background="Transparent" Foreground="#ff5500" BorderThickness="0" FontWeight="Bold" Cursor="Hand" FontSize="16"/>
                 </StackPanel>
             </Grid>
@@ -182,22 +163,12 @@
                 </TabControl.ItemTemplate>
                 <TabControl.ContentTemplate>
                     <DataTemplate>
-                        <ListBox ItemsSource="{Binding SortedCards}" 
-                                 Background="Transparent" 
-                                 BorderThickness="0" 
-                                 VerticalContentAlignment="Stretch"
-                                 ScrollViewer.HorizontalScrollBarVisibility="Visible" 
-                                 ScrollViewer.VerticalScrollBarVisibility="Disabled"
-                                 ScrollViewer.CanContentScroll="False" 
-                                 ScrollViewer.PanningMode="HorizontalOnly"
-                                 PreviewMouseWheel="ListBox_PreviewMouseWheel">
-
+                        <ListBox ItemsSource="{Binding SortedCards}" Background="Transparent" BorderThickness="0" VerticalContentAlignment="Stretch" ScrollViewer.HorizontalScrollBarVisibility="Visible" ScrollViewer.VerticalScrollBarVisibility="Disabled" ScrollViewer.CanContentScroll="False" ScrollViewer.PanningMode="HorizontalOnly" PreviewMouseWheel="ListBox_PreviewMouseWheel">
                             <ListBox.ItemsPanel>
                                 <ItemsPanelTemplate>
                                     <StackPanel Orientation="Horizontal" IsItemsHost="True"/>
                                 </ItemsPanelTemplate>
                             </ListBox.ItemsPanel>
-
                             <ListBox.ItemContainerStyle>
                                 <Style TargetType="ListBoxItem">
                                     <Setter Property="Background" Value="Transparent"/>
@@ -214,7 +185,6 @@
                                     </Setter>
                                 </Style>
                             </ListBox.ItemContainerStyle>
-
                             <ListBox.ItemTemplate>
                                 <DataTemplate>
                                     <Viewbox Stretch="Uniform" Margin="5,5,5,15">
@@ -231,17 +201,13 @@
                                                         <RowDefinition Height="Auto"/>
                                                         <RowDefinition Height="Auto"/>
                                                     </Grid.RowDefinitions>
-
                                                     <TextBlock Grid.Row="0" Text="{Binding Title}" Foreground="#00e5ff" FontWeight="Bold" FontSize="20" HorizontalAlignment="Center" TextAlignment="Center" TextWrapping="Wrap"/>
-
                                                     <StackPanel Grid.Row="1" VerticalAlignment="Center">
                                                         <TextBlock Text="{Binding TimerPrefix}" Foreground="#aaa" FontSize="14" HorizontalAlignment="Center" Margin="0,0,0,5"/>
                                                         <TextBlock Text="{Binding TimerText}" Foreground="{Binding TimerColor}" FontFamily="Consolas" FontWeight="Bold" FontSize="32" HorizontalAlignment="Center"/>
                                                         <TextBlock Text="{Binding LocalTimeText}" Foreground="#888" FontSize="{Binding LocalTimeFontSize}" HorizontalAlignment="Center" Margin="0,2,0,0"/>
                                                     </StackPanel>
-
                                                     <TextBlock Grid.Row="2" Text="{Binding Map}" Foreground="#eeeeee" FontWeight="SemiBold" FontSize="16" HorizontalAlignment="Center" TextWrapping="Wrap" TextAlignment="Center" Margin="0,0,0,10"/>
-
                                                     <CheckBox Grid.Row="3" IsChecked="{Binding IsAlertEnabled}" Visibility="{Binding AlertVisibility}" Content="{Binding AlertLabel}" Style="{StaticResource AlertCheckBox}" HorizontalAlignment="Right"/>
                                                 </Grid>
                                             </Grid>
@@ -253,6 +219,50 @@
                     </DataTemplate>
                 </TabControl.ContentTemplate>
             </TabControl>
+
+            <Grid x:Name="TwitchPanel" Grid.Row="1" Visibility="Collapsed" Background="#1A000000" Margin="10">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="*"/>
+                </Grid.RowDefinitions>
+                <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="5,0,0,10">
+                    <Button x:Name="BackToEventsBtn" Content="← Retour aux évènements" Click="BackToTimers_Click" Background="#ff5500" Foreground="Black" FontWeight="Bold" Padding="15,5" BorderThickness="0" Margin="0,0,15,0" Cursor="Hand"/>
+                    <Button x:Name="RefreshTwitchBtn" Content="↻" Click="RefreshTwitch_Click" Background="#333" Foreground="White" FontWeight="Bold" FontSize="16" Padding="10,2" BorderThickness="0" Margin="0,0,5,0" Cursor="Hand"/>
+                    <Button x:Name="SortAscBtn" Content="Trier: Viewers ▲" Click="SortViewersAsc_Click" Background="#333" Foreground="White" Padding="10,5" BorderThickness="0" Margin="0,0,5,0" Cursor="Hand"/>
+                    <Button x:Name="SortDescBtn" Content="Trier: Viewers ▼" Click="SortViewersDesc_Click" Background="#333" Foreground="White" Padding="10,5" BorderThickness="0" Cursor="Hand"/>
+                </StackPanel>
+                <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
+                    <ItemsControl x:Name="TwitchItemsControl">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <WrapPanel Orientation="Horizontal" HorizontalAlignment="Left"/>
+                            </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Border Background="#222" BorderBrush="#ff5500" BorderThickness="1" CornerRadius="5" Margin="5,5,15,15" Width="260" Height="210" Cursor="Hand" MouseLeftButtonUp="TwitchCard_Click">
+                                    <Grid>
+                                        <Grid.RowDefinitions>
+                                            <RowDefinition Height="146"/>
+                                            <RowDefinition Height="*"/>
+                                        </Grid.RowDefinitions>
+                                        <Image Source="{Binding ThumbnailUrl}" Stretch="UniformToFill" Grid.Row="0"/>
+                                        <Border Grid.Row="0" Background="#CC000000" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="5" Padding="4,2" CornerRadius="3">
+                                            <TextBlock Text="{Binding ViewerCountText}" Foreground="#ff5500" FontWeight="Bold" FontSize="11"/>
+                                        </Border>
+                                        <Border Grid.Row="1" Background="#111" Padding="5">
+                                            <StackPanel>
+                                                <TextBlock Text="{Binding StreamerName}" Foreground="White" FontWeight="Bold" FontSize="14"/>
+                                                <TextBlock Text="{Binding StreamTitle}" Foreground="#aaa" FontSize="11" TextWrapping="Wrap" MaxHeight="30" TextTrimming="CharacterEllipsis"/>
+                                            </StackPanel>
+                                        </Border>
+                                    </Grid>
+                                </Border>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </ScrollViewer>
+            </Grid>
         </Grid>
     </Border>
 </Window>

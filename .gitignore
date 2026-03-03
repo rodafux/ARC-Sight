@@ -12,6 +12,7 @@ Generated\ Files/
 [Rr]eleases/
 Release/
 Debug/
+languages/
 
 # === Fichiers utilisateur et cache ===
 *.user

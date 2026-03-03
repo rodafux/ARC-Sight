@@ -1,7 +1,8 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 	<PropertyGroup>
 		<OutputType>WinExe</OutputType>
-		<TargetFramework>net8.0-windows</TargetFramework>
+		<TargetFramework>net8.0-windows10.0.17763.0</TargetFramework>
+		<SupportedOSPlatformVersion>10.0.17763.0</SupportedOSPlatformVersion>
 		<Nullable>enable</Nullable>
 		<ImplicitUsings>enable</ImplicitUsings>
 		<UseWPF>true</UseWPF>
@@ -19,19 +20,22 @@
 		<PublishSingleFile>false</PublishSingleFile>
 
 		<VelopackId>ARC-Sight</VelopackId>
-		<Version>1.3.4</Version>
-		<FileVersion>1.3.4</FileVersion>
-		<InformationalVersion>1.3.4</InformationalVersion>
-		<VelopackVersion>1.3.4</VelopackVersion>
+		<Version>1.4.0</Version>
+		<FileVersion>1.4.0</FileVersion>
+		<InformationalVersion>1.4.0</InformationalVersion>
+		<VelopackVersion>1.4.0</VelopackVersion>
 		<VelopackTargetRuntime>win-x64</VelopackTargetRuntime>
 	</PropertyGroup>
 
 	<ItemGroup>
 		<None Remove="assets\logo.png" />
+		<None Remove="assets\twitch.png" />
 		<Resource Include="assets\logo.png" />
+		<Resource Include="assets\twitch.png" />
 	</ItemGroup>
 
 	<ItemGroup>
+		<PackageReference Include="Microsoft.Web.WebView2" Version="1.0.3800.47" />
 		<PackageReference Include="Velopack" Version="0.0.1298" />
 		<PackageReference Include="Velopack.Build" Version="0.0.1298">
 			<PrivateAssets>all</PrivateAssets>
