@@ -643,7 +643,18 @@ namespace ARC_Sight
         private bool HasNotified = false;
         public CardViewModel(ScheduleEvent d) { RawData = d; BorderColor = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(60, 60, 60)); LoadImage(); UpdateTimer(); }
         public void UpdateData(ScheduleEvent n) { if (RawData.startTime != n.startTime || RawData.endTime != n.endTime) { RawData = n; HasNotified = false; UpdateTimer(); OnPropertyChanged(nameof(Title)); OnPropertyChanged(nameof(Map)); } }
-        private void LoadImage() { string m = RawData.map ?? ""; string f = m.Contains("Dam") ? "Barrage.png" : (m.Contains("Spaceport") ? "Port_spatial.png" : (m.Contains("Buried") ? "Ville_enfouie.png" : (m.Contains("Gate") ? "Portail_bleu.png" : (m.Contains("Stella") ? "Stella_montis.png" : "Barrage.png")))); string p = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "assets", f); if (File.Exists(p)) try { BackgroundImage = new BitmapImage(new Uri(p)); } catch { } }
+        private void LoadImage()
+        {
+            string m = RawData.map ?? "";
+            string f = m.Contains("Dam") ? "Barrage.png" :
+                       (m.Contains("Spaceport") ? "Port_spatial.png" :
+                       (m.Contains("Buried") ? "Ville_enfouie.png" :
+                       (m.Contains("Gate") ? "Portail_bleu.png" :
+                       (m.Contains("Stella") ? "Stella_montis.png" :
+                       (m.Contains("Riven") ? "Riven_tides.png" : "Barrage.png")))));
+            string p = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "assets", f);
+            if (File.Exists(p)) try { BackgroundImage = new BitmapImage(new Uri(p)); } catch { }
+        }
         public void UpdateTimer()
         {
             long now = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();

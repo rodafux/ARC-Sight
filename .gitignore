@@ -1,20 +1,20 @@
-# === Dossiers de compilation et temporaires ===
+# === Dossiers de compilation et temporaires (À IGNORER) ===
 [Bb]in/
 [Oo]bj/
 .vs/
 .vs*
 Generated\ Files/
+TestResults/
 
-# === Dossiers de sortie et publication ===
-# Ces dossiers contiennent les DLL et installeurs lourds (219 Mo) 
-# qui ne doivent pas être sur le code source
+# === Dossiers de sortie et publication (À IGNORER) ===
+# Ces dossiers contiennent les DLL et installeurs lourds
 [Pp]ublish/
 [Rr]eleases/
 Release/
 Debug/
-languages/
+# ATTENTION: Ne SURTOUT PAS mettre "languages/" ici !
 
-# === Fichiers utilisateur et cache ===
+# === Fichiers de configuration utilisateur et cache (À IGNORER) ===
 *.user
 *.suo
 *.userosscache
@@ -22,15 +22,14 @@ languages/
 *.userprefs
 *.db
 *.opendb
+*.DotSettings.user
 
-# === Archives et fichiers de packaging ===
-# Pour éviter d'envoyer les backups ou les raretés locales
+# === Archives et fichiers de packaging (À IGNORER) ===
 *.rar
 *.zip
 *.7z
 *.nupkg
 
-# === Velopack / Squirrel ===
-# On ignore les dossiers de staging de mise à jour
+# === Velopack / Squirrel (À IGNORER) ===
 Update.exe
 Squirrel.exe
