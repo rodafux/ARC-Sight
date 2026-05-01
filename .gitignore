@@ -1,0 +1,35 @@
+# === Dossiers de compilation et temporaires (À IGNORER) ===
+[Bb]in/
+[Oo]bj/
+.vs/
+.vs*
+Generated\ Files/
+TestResults/
+
+# === Dossiers de sortie et publication (À IGNORER) ===
+# Ces dossiers contiennent les DLL et installeurs lourds
+[Pp]ublish/
+[Rr]eleases/
+Release/
+Debug/
+# ATTENTION: Ne SURTOUT PAS mettre "languages/" ici !
+
+# === Fichiers de configuration utilisateur et cache (À IGNORER) ===
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+*.userprefs
+*.db
+*.opendb
+*.DotSettings.user
+
+# === Archives et fichiers de packaging (À IGNORER) ===
+*.rar
+*.zip
+*.7z
+*.nupkg
+
+# === Velopack / Squirrel (À IGNORER) ===
+Update.exe
+Squirrel.exe
