@@ -6,9 +6,10 @@
 <img width="1919" height="1062" alt="Capture d&#39;écran 2025-12-13 051941" src="https://github.com/user-attachments/assets/f1e28032-c291-4760-bbaf-e74321e29fa2" /><br><br>
 <img src="https://github.com/user-attachments/assets/21584b10-de02-409c-aef4-5b550c8f59f4" width="205" align="left" alt="logo" /><br><br><br>
  
- 
+## OUTDATED
  
 **ARC-Sight** is a lightweight, non-intrusive external overlay designed for *ARC Raiders*. It tracks in-game events in real-time, helping you plan your raids without leaving your game screen.<br><br><br><br><br><br><br>
+
 ## 🚀 Key Features
 
 * **Live Event Tracking:** Accurate countdowns for all map events synced with the Metaforge API.
